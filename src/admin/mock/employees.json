@@ -1,0 +1,111 @@
+[
+  {
+    "id": 1,
+    "name": "Robert Johnson",
+    "email": "robert.j@hostelmanager.com",
+    "phone": "+1-555-1001",
+    "role": "General Manager",
+    "joinedAt": "2023-01-15",
+    "status": "Active"
+  },
+  {
+    "id": 2,
+    "name": "Maria Garcia",
+    "email": "maria.g@hostelmanager.com",
+    "phone": "+1-555-1002",
+    "role": "Front Desk Manager",
+    "joinedAt": "2023-03-20",
+    "status": "Active"
+  },
+  {
+    "id": 3,
+    "name": "David Kim",
+    "email": "david.k@hostelmanager.com",
+    "phone": "+1-555-1003",
+    "role": "Maintenance Supervisor",
+    "joinedAt": "2023-02-10",
+    "status": "Active"
+  },
+  {
+    "id": 4,
+    "name": "Jennifer Lee",
+    "email": "jennifer.l@hostelmanager.com",
+    "phone": "+1-555-1004",
+    "role": "Housekeeping Lead",
+    "joinedAt": "2023-05-01",
+    "status": "Active"
+  },
+  {
+    "id": 5,
+    "name": "William Brown",
+    "email": "william.b@hostelmanager.com",
+    "phone": "+1-555-1005",
+    "role": "Night Auditor",
+    "joinedAt": "2023-06-15",
+    "status": "Active"
+  },
+  {
+    "id": 6,
+    "name": "Lisa Anderson",
+    "email": "lisa.a@hostelmanager.com",
+    "phone": "+1-555-1006",
+    "role": "Front Desk Associate",
+    "joinedAt": "2024-01-10",
+    "status": "Active"
+  },
+  {
+    "id": 7,
+    "name": "James Wilson",
+    "email": "james.w@hostelmanager.com",
+    "phone": "+1-555-1007",
+    "role": "Security Officer",
+    "joinedAt": "2023-08-20",
+    "status": "Active"
+  },
+  {
+    "id": 8,
+    "name": "Patricia Martinez",
+    "email": "patricia.m@hostelmanager.com",
+    "phone": "+1-555-1008",
+    "role": "Accountant",
+    "joinedAt": "2023-04-15",
+    "status": "Active"
+  },
+  {
+    "id": 9,
+    "name": "Michael Taylor",
+    "email": "michael.t@hostelmanager.com",
+    "phone": "+1-555-1009",
+    "role": "Maintenance Technician",
+    "joinedAt": "2024-02-01",
+    "status": "Active"
+  },
+  {
+    "id": 10,
+    "name": "Linda Thomas",
+    "email": "linda.t@hostelmanager.com",
+    "phone": "+1-555-1010",
+    "role": "Housekeeping Staff",
+    "joinedAt": "2024-03-15",
+    "status": "Active"
+  },
+  {
+    "id": 11,
+    "name": "Christopher Moore",
+    "email": "chris.m@hostelmanager.com",
+    "phone": "+1-555-1011",
+    "role": "IT Support Specialist",
+    "joinedAt": "2023-07-01",
+    "status": "Active"
+  },
+  {
+    "id": 12,
+    "name": "Sandra Jackson",
+    "email": "sandra.j@hostelmanager.com",
+    "phone": "+1-555-1012",
+    "role": "HR Coordinator",
+    "joinedAt": "2023-09-10",
+    "status": "Inactive"
+  }
+]
+

@@ -1,0 +1,131 @@
+[
+  {
+    "id": 1,
+    "target": "Tenant",
+    "subject": "Monthly Newsletter - October",
+    "body": "Welcome to our October newsletter! Check out upcoming events and important reminders for the month.",
+    "createdAt": "2025-10-01T10:00:00Z",
+    "from": "Management Team"
+  },
+  {
+    "id": 2,
+    "target": "Tenant",
+    "subject": "Maintenance Notice - Water Shut Off",
+    "body": "Please be advised that water will be shut off on October 28th from 9 AM to 2 PM for routine maintenance.",
+    "createdAt": "2025-10-15T14:30:00Z",
+    "from": "Maintenance Department"
+  },
+  {
+    "id": 3,
+    "target": "Employee",
+    "subject": "Staff Meeting - October 25th",
+    "body": "Mandatory staff meeting scheduled for October 25th at 3 PM in the main conference room. Please confirm attendance.",
+    "createdAt": "2025-10-10T09:00:00Z",
+    "from": "HR Department"
+  },
+  {
+    "id": 4,
+    "target": "Vendor",
+    "subject": "Invoice #3006 - Payment Processed",
+    "body": "Your invoice #3006 for furniture replacement has been processed. Payment will be transferred within 3 business days.",
+    "createdAt": "2025-10-12T11:20:00Z",
+    "from": "Accounts Payable"
+  },
+  {
+    "id": 5,
+    "target": "Tenant",
+    "subject": "Rent Reminder - Due October 1st",
+    "body": "This is a friendly reminder that rent payment is due on the 1st of each month. Thank you for your prompt payment.",
+    "createdAt": "2025-09-28T08:00:00Z",
+    "from": "Billing Department"
+  },
+  {
+    "id": 6,
+    "target": "Employee",
+    "subject": "New Safety Protocols",
+    "body": "Updated safety protocols have been implemented. Please review the attached document and acknowledge receipt.",
+    "createdAt": "2025-10-08T13:45:00Z",
+    "from": "Safety Officer"
+  },
+  {
+    "id": 7,
+    "target": "Vendor",
+    "subject": "Service Request - HVAC Maintenance",
+    "body": "We need to schedule routine HVAC maintenance for Building A. Please provide available dates for next week.",
+    "createdAt": "2025-10-14T10:30:00Z",
+    "from": "Facilities Manager"
+  },
+  {
+    "id": 8,
+    "target": "Tenant",
+    "subject": "Community Event - Halloween Party",
+    "body": "Join us for our Halloween party on October 31st at 7 PM in the common area. Costumes encouraged!",
+    "createdAt": "2025-10-18T16:00:00Z",
+    "from": "Community Coordinator"
+  },
+  {
+    "id": 9,
+    "target": "Employee",
+    "subject": "Time Off Requests - Holiday Season",
+    "body": "Please submit all holiday season time off requests by November 1st to ensure proper scheduling.",
+    "createdAt": "2025-10-16T09:30:00Z",
+    "from": "HR Department"
+  },
+  {
+    "id": 10,
+    "target": "Vendor",
+    "subject": "Contract Renewal Discussion",
+    "body": "Your current contract expires December 31st. Let's schedule a meeting to discuss renewal terms.",
+    "createdAt": "2025-10-20T14:00:00Z",
+    "from": "Procurement Manager"
+  },
+  {
+    "id": 11,
+    "target": "Tenant",
+    "subject": "Parking Policy Update",
+    "body": "Important updates to our parking policy effective November 1st. Please review the new guidelines.",
+    "createdAt": "2025-10-17T11:00:00Z",
+    "from": "Management Team"
+  },
+  {
+    "id": 12,
+    "target": "Employee",
+    "subject": "Performance Review Schedule",
+    "body": "Annual performance reviews will be conducted during the first week of November. Expect scheduling confirmation soon.",
+    "createdAt": "2025-10-19T10:15:00Z",
+    "from": "HR Department"
+  },
+  {
+    "id": 13,
+    "target": "Tenant",
+    "subject": "Lease Renewal Invitation",
+    "body": "Your lease is expiring soon. We'd love to have you stay! Contact us to discuss renewal options.",
+    "createdAt": "2025-10-13T15:30:00Z",
+    "from": "Leasing Office"
+  },
+  {
+    "id": 14,
+    "target": "Vendor",
+    "subject": "Quality Feedback - Recent Service",
+    "body": "Thank you for your recent service. We'd appreciate your feedback on how we can improve our partnership.",
+    "createdAt": "2025-10-11T12:45:00Z",
+    "from": "Quality Assurance"
+  },
+  {
+    "id": 15,
+    "target": "Employee",
+    "subject": "Benefits Enrollment Open",
+    "body": "Annual benefits enrollment period is now open. Please review and update your selections by October 31st.",
+    "createdAt": "2025-10-05T08:30:00Z",
+    "from": "Benefits Administrator"
+  },
+  {
+    "id": 16,
+    "target": "Tenant",
+    "subject": "Wi-Fi Network Upgrade Complete",
+    "body": "Our Wi-Fi network upgrade is complete! Enjoy faster speeds and better coverage throughout the building.",
+    "createdAt": "2025-10-21T13:00:00Z",
+    "from": "IT Department"
+  }
+]
+

@@ -1,0 +1,201 @@
+[
+  {
+    "id": 1,
+    "date": "2025-10-01",
+    "ref": "RENT-1001",
+    "type": "Rent",
+    "amount": 800,
+    "status": "Paid",
+    "tenantName": "Sarah Johnson"
+  },
+  {
+    "id": 2,
+    "date": "2025-10-01",
+    "ref": "RENT-1002",
+    "type": "Rent",
+    "amount": 800,
+    "status": "Paid",
+    "tenantName": "Michael Chen"
+  },
+  {
+    "id": 3,
+    "date": "2025-10-05",
+    "ref": "RENT-1003",
+    "type": "Rent",
+    "amount": 750,
+    "status": "Paid",
+    "tenantName": "Emma Rodriguez"
+  },
+  {
+    "id": 4,
+    "date": "2025-10-05",
+    "ref": "RENT-1004",
+    "type": "Rent",
+    "amount": 800,
+    "status": "Pending",
+    "tenantName": "James Wilson"
+  },
+  {
+    "id": 5,
+    "date": "2025-10-03",
+    "ref": "DEP-2001",
+    "type": "Deposit",
+    "amount": 500,
+    "status": "Paid",
+    "tenantName": "Olivia Martinez"
+  },
+  {
+    "id": 6,
+    "date": "2025-09-28",
+    "ref": "EXP-3001",
+    "type": "Expense",
+    "amount": 350,
+    "status": "Paid",
+    "description": "Plumbing repair - Room 305"
+  },
+  {
+    "id": 7,
+    "date": "2025-10-07",
+    "ref": "RENT-1005",
+    "type": "Rent",
+    "amount": 780,
+    "status": "Paid",
+    "tenantName": "Sophia Anderson"
+  },
+  {
+    "id": 8,
+    "date": "2025-10-02",
+    "ref": "EXP-3002",
+    "type": "Expense",
+    "amount": 1200,
+    "status": "Paid",
+    "description": "Monthly cleaning supplies"
+  },
+  {
+    "id": 9,
+    "date": "2025-10-10",
+    "ref": "RENT-1006",
+    "type": "Rent",
+    "amount": 800,
+    "status": "Overdue",
+    "tenantName": "Ava Thomas"
+  },
+  {
+    "id": 10,
+    "date": "2025-10-04",
+    "ref": "DEP-2002",
+    "type": "Deposit",
+    "amount": 500,
+    "status": "Paid",
+    "tenantName": "Ethan Garcia"
+  },
+  {
+    "id": 11,
+    "date": "2025-09-30",
+    "ref": "EXP-3003",
+    "type": "Expense",
+    "amount": 2500,
+    "status": "Paid",
+    "description": "HVAC maintenance"
+  },
+  {
+    "id": 12,
+    "date": "2025-10-08",
+    "ref": "RENT-1007",
+    "type": "Rent",
+    "amount": 820,
+    "status": "Paid",
+    "tenantName": "Isabella Lee"
+  },
+  {
+    "id": 13,
+    "date": "2025-10-09",
+    "ref": "RENT-1008",
+    "type": "Rent",
+    "amount": 750,
+    "status": "Paid",
+    "tenantName": "Mason White"
+  },
+  {
+    "id": 14,
+    "date": "2025-10-06",
+    "ref": "EXP-3004",
+    "type": "Expense",
+    "amount": 450,
+    "status": "Paid",
+    "description": "Internet & utilities"
+  },
+  {
+    "id": 15,
+    "date": "2025-10-11",
+    "ref": "RENT-1009",
+    "type": "Rent",
+    "amount": 800,
+    "status": "Pending",
+    "tenantName": "Lucas Martin"
+  },
+  {
+    "id": 16,
+    "date": "2025-09-25",
+    "ref": "REF-4001",
+    "type": "Refund",
+    "amount": 150,
+    "status": "Paid",
+    "tenantName": "Noah Taylor"
+  },
+  {
+    "id": 17,
+    "date": "2025-10-12",
+    "ref": "RENT-1010",
+    "type": "Rent",
+    "amount": 790,
+    "status": "Paid",
+    "tenantName": "Amelia Clark"
+  },
+  {
+    "id": 18,
+    "date": "2025-10-01",
+    "ref": "EXP-3005",
+    "type": "Expense",
+    "amount": 800,
+    "status": "Paid",
+    "description": "Security system upgrade"
+  },
+  {
+    "id": 19,
+    "date": "2025-10-13",
+    "ref": "DEP-2003",
+    "type": "Deposit",
+    "amount": 500,
+    "status": "Paid",
+    "tenantName": "Liam Brown"
+  },
+  {
+    "id": 20,
+    "date": "2025-10-03",
+    "ref": "EXP-3006",
+    "type": "Expense",
+    "amount": 650,
+    "status": "Paid",
+    "description": "Furniture replacement"
+  },
+  {
+    "id": 21,
+    "date": "2025-10-14",
+    "ref": "RENT-1011",
+    "type": "Rent",
+    "amount": 800,
+    "status": "Pending",
+    "tenantName": "Charlotte Harris"
+  },
+  {
+    "id": 22,
+    "date": "2025-10-15",
+    "ref": "EXP-3007",
+    "type": "Expense",
+    "amount": 300,
+    "status": "Pending",
+    "description": "Landscaping services"
+  }
+]
+

@@ -1,0 +1,87 @@
+[
+  {
+    "id": 1,
+    "title": "Maintenance Request - Room 305",
+    "severity": "warn",
+    "createdAt": "2025-10-20T09:30:00Z",
+    "status": "open",
+    "description": "Leaking faucet reported by tenant",
+    "assignedTo": "David Kim"
+  },
+  {
+    "id": 2,
+    "title": "Security System Update Available",
+    "severity": "info",
+    "createdAt": "2025-10-19T14:15:00Z",
+    "status": "open",
+    "description": "New firmware version 2.3.1 available for security cameras"
+  },
+  {
+    "id": 3,
+    "title": "Overdue Payment - Room 502",
+    "severity": "danger",
+    "createdAt": "2025-10-18T11:00:00Z",
+    "status": "open",
+    "description": "Rent payment 5 days overdue for Ava Thomas",
+    "assignedTo": "Patricia Martinez"
+  },
+  {
+    "id": 4,
+    "title": "Fire Safety Inspection Due",
+    "severity": "warn",
+    "createdAt": "2025-10-17T08:45:00Z",
+    "status": "open",
+    "description": "Annual fire safety inspection scheduled for next week"
+  },
+  {
+    "id": 5,
+    "title": "New Tenant Check-in",
+    "severity": "info",
+    "createdAt": "2025-10-16T16:20:00Z",
+    "status": "closed",
+    "description": "Liam Brown scheduled for check-in on March 1st"
+  },
+  {
+    "id": 6,
+    "title": "HVAC System Alert - Building A",
+    "severity": "danger",
+    "createdAt": "2025-10-15T07:30:00Z",
+    "status": "open",
+    "description": "Temperature reading abnormal, immediate attention required",
+    "assignedTo": "David Kim"
+  },
+  {
+    "id": 7,
+    "title": "Cleaning Supplies Low Stock",
+    "severity": "warn",
+    "createdAt": "2025-10-14T13:00:00Z",
+    "status": "open",
+    "description": "Reorder cleaning supplies - stock below threshold"
+  },
+  {
+    "id": 8,
+    "title": "Lease Expiring Soon",
+    "severity": "info",
+    "createdAt": "2025-10-13T10:15:00Z",
+    "status": "open",
+    "description": "3 leases expiring within next 30 days"
+  },
+  {
+    "id": 9,
+    "title": "Internet Outage - Floor 3",
+    "severity": "danger",
+    "createdAt": "2025-10-12T15:45:00Z",
+    "status": "closed",
+    "description": "Network connectivity issue resolved",
+    "assignedTo": "Christopher Moore"
+  },
+  {
+    "id": 10,
+    "title": "Staff Meeting Reminder",
+    "severity": "info",
+    "createdAt": "2025-10-11T09:00:00Z",
+    "status": "closed",
+    "description": "Monthly all-staff meeting scheduled for October 25th"
+  }
+]
+

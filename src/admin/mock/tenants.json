@@ -1,0 +1,168 @@
+[
+  {
+    "id": 1,
+    "name": "Sarah Johnson",
+    "email": "sarah.johnson@email.com",
+    "phone": "+1-555-0101",
+    "room": "201",
+    "bed": "A",
+    "leaseStart": "2025-01-15",
+    "leaseEnd": "2025-07-15",
+    "status": "Active"
+  },
+  {
+    "id": 2,
+    "name": "Michael Chen",
+    "email": "m.chen@email.com",
+    "phone": "+1-555-0102",
+    "room": "201",
+    "bed": "B",
+    "leaseStart": "2024-12-01",
+    "leaseEnd": "2025-06-01",
+    "status": "Active"
+  },
+  {
+    "id": 3,
+    "name": "Emma Rodriguez",
+    "email": "emma.r@email.com",
+    "phone": "+1-555-0103",
+    "room": "305",
+    "bed": "A",
+    "leaseStart": "2025-02-01",
+    "leaseEnd": "2025-08-01",
+    "status": "Active"
+  },
+  {
+    "id": 4,
+    "name": "James Wilson",
+    "email": "james.wilson@email.com",
+    "phone": "+1-555-0104",
+    "room": "102",
+    "bed": "C",
+    "leaseStart": "2025-01-10",
+    "leaseEnd": "2025-07-10",
+    "status": "Active"
+  },
+  {
+    "id": 5,
+    "name": "Olivia Martinez",
+    "email": "olivia.m@email.com",
+    "phone": "+1-555-0105",
+    "room": "403",
+    "bed": "B",
+    "leaseStart": "2024-11-15",
+    "leaseEnd": "2025-05-15",
+    "status": "Active"
+  },
+  {
+    "id": 6,
+    "name": "Liam Brown",
+    "email": "liam.brown@email.com",
+    "phone": "+1-555-0106",
+    "room": "204",
+    "bed": "A",
+    "leaseStart": "2025-03-01",
+    "leaseEnd": "2025-09-01",
+    "status": "Pending"
+  },
+  {
+    "id": 7,
+    "name": "Sophia Anderson",
+    "email": "sophia.a@email.com",
+    "phone": "+1-555-0107",
+    "room": "301",
+    "bed": "D",
+    "leaseStart": "2024-10-01",
+    "leaseEnd": "2025-04-01",
+    "status": "Active"
+  },
+  {
+    "id": 8,
+    "name": "Noah Taylor",
+    "email": "noah.t@email.com",
+    "phone": "+1-555-0108",
+    "room": "105",
+    "bed": "B",
+    "leaseStart": "2024-09-15",
+    "leaseEnd": "2025-03-15",
+    "status": "Inactive"
+  },
+  {
+    "id": 9,
+    "name": "Ava Thomas",
+    "email": "ava.thomas@email.com",
+    "phone": "+1-555-0109",
+    "room": "502",
+    "bed": "A",
+    "leaseStart": "2025-01-20",
+    "leaseEnd": "2025-07-20",
+    "status": "Active"
+  },
+  {
+    "id": 10,
+    "name": "Ethan Garcia",
+    "email": "ethan.g@email.com",
+    "phone": "+1-555-0110",
+    "room": "306",
+    "bed": "C",
+    "leaseStart": "2025-02-10",
+    "leaseEnd": "2025-08-10",
+    "status": "Active"
+  },
+  {
+    "id": 11,
+    "name": "Isabella Lee",
+    "email": "isabella.lee@email.com",
+    "phone": "+1-555-0111",
+    "room": "401",
+    "bed": "B",
+    "leaseStart": "2024-12-15",
+    "leaseEnd": "2025-06-15",
+    "status": "Active"
+  },
+  {
+    "id": 12,
+    "name": "Mason White",
+    "email": "mason.white@email.com",
+    "phone": "+1-555-0112",
+    "room": "203",
+    "bed": "D",
+    "leaseStart": "2025-01-05",
+    "leaseEnd": "2025-07-05",
+    "status": "Active"
+  },
+  {
+    "id": 13,
+    "name": "Charlotte Harris",
+    "email": "charlotte.h@email.com",
+    "phone": "+1-555-0113",
+    "room": "104",
+    "bed": "A",
+    "leaseStart": "2025-03-15",
+    "leaseEnd": "2025-09-15",
+    "status": "Pending"
+  },
+  {
+    "id": 14,
+    "name": "Lucas Martin",
+    "email": "lucas.martin@email.com",
+    "phone": "+1-555-0114",
+    "room": "304",
+    "bed": "C",
+    "leaseStart": "2024-11-01",
+    "leaseEnd": "2025-05-01",
+    "status": "Active"
+  },
+  {
+    "id": 15,
+    "name": "Amelia Clark",
+    "email": "amelia.clark@email.com",
+    "phone": "+1-555-0115",
+    "room": "501",
+    "bed": "B",
+    "leaseStart": "2025-02-20",
+    "leaseEnd": "2025-08-20",
+    "status": "Active"
+  }
+]
+

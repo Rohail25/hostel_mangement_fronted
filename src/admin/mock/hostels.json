@@ -1,0 +1,103 @@
+[
+  {
+    "id": 1,
+    "name": "Downtown Hub Hostel",
+    "city": "New York",
+    "totalFloors": 5,
+    "roomsPerFloor": 12,
+    "managerName": "Robert Johnson",
+    "managerPhone": "+1-555-1001",
+    "notes": "Prime location near subway. Recently renovated common areas."
+  },
+  {
+    "id": 2,
+    "name": "Sunset Beach Hostel",
+    "city": "Los Angeles",
+    "totalFloors": 3,
+    "roomsPerFloor": 10,
+    "managerName": "Maria Garcia",
+    "managerPhone": "+1-555-1002",
+    "notes": "Ocean view rooms available. Popular with international travelers."
+  },
+  {
+    "id": 3,
+    "name": "Tech District Inn",
+    "city": "San Francisco",
+    "totalFloors": 6,
+    "roomsPerFloor": 8,
+    "managerName": "David Kim",
+    "managerPhone": "+1-555-1003",
+    "notes": "Located in tech hub. High-speed internet, co-working spaces."
+  },
+  {
+    "id": 4,
+    "name": "Historic Quarter Hostel",
+    "city": "Boston",
+    "totalFloors": 4,
+    "roomsPerFloor": 9,
+    "managerName": "Jennifer Lee",
+    "managerPhone": "+1-555-1004",
+    "notes": "Heritage building with modern amenities. Near tourist attractions."
+  },
+  {
+    "id": 5,
+    "name": "University Campus Hostel",
+    "city": "Austin",
+    "totalFloors": 3,
+    "roomsPerFloor": 15,
+    "managerName": "William Brown",
+    "managerPhone": "+1-555-1005",
+    "notes": "Student-friendly pricing. Active community events."
+  },
+  {
+    "id": 6,
+    "name": "Mountain View Lodge",
+    "city": "Denver",
+    "totalFloors": 4,
+    "roomsPerFloor": 11,
+    "managerName": "Lisa Anderson",
+    "managerPhone": "+1-555-1006",
+    "notes": "Scenic location. Ski equipment storage available."
+  },
+  {
+    "id": 7,
+    "name": "Riverside Retreat",
+    "city": "Portland",
+    "totalFloors": 3,
+    "roomsPerFloor": 10,
+    "managerName": "James Wilson",
+    "managerPhone": "+1-555-1007",
+    "notes": "Eco-friendly hostel. Bike rentals included."
+  },
+  {
+    "id": 8,
+    "name": "Urban Oasis Hostel",
+    "city": "Seattle",
+    "totalFloors": 5,
+    "roomsPerFloor": 13,
+    "managerName": "Patricia Martinez",
+    "managerPhone": "+1-555-1008",
+    "notes": "Modern design. Rooftop terrace with city views."
+  },
+  {
+    "id": 9,
+    "name": "Lakefront Hostel",
+    "city": "Chicago",
+    "totalFloors": 4,
+    "roomsPerFloor": 10,
+    "managerName": "Michael Taylor",
+    "managerPhone": "+1-555-1009",
+    "notes": "Walking distance to lake. Summer activities program."
+  },
+  {
+    "id": 10,
+    "name": "Garden District Lodge",
+    "city": "Miami",
+    "totalFloors": 3,
+    "roomsPerFloor": 12,
+    "managerName": "Linda Thomas",
+    "managerPhone": "+1-555-1010",
+    "notes": "Tropical garden courtyard. Pool access."
+  }
+]
+

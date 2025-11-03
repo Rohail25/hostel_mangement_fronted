@@ -1,0 +1,33 @@
+[
+  {
+    "year": 2020,
+    "income": 512000,
+    "expenses": 245000
+  },
+  {
+    "year": 2021,
+    "income": 548000,
+    "expenses": 268000
+  },
+  {
+    "year": 2022,
+    "income": 592000,
+    "expenses": 285000
+  },
+  {
+    "year": 2023,
+    "income": 634000,
+    "expenses": 298000
+  },
+  {
+    "year": 2024,
+    "income": 678000,
+    "expenses": 312000
+  },
+  {
+    "year": 2025,
+    "income": 648400,
+    "expenses": 300100
+  }
+]
+
