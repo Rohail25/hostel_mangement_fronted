@@ -3,7 +3,6 @@ import { NavLink } from "react-router-dom";
 import {
   ChartBarIcon,
   UsersIcon,
-  BriefcaseIcon,
   CurrencyDollarIcon,
   BuildingOfficeIcon,
   BellAlertIcon,
@@ -11,7 +10,6 @@ import {
   ChatBubbleLeftRightIcon,
   PresentationChartLineIcon,
   Cog6ToothIcon,
-  MagnifyingGlassIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
 import ROUTES from "../routes/routePaths";

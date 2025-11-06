@@ -51,7 +51,7 @@ const HostelCreate: React.FC = () => {
   const onSubmit = async (data: HostelFormData) => {
     try {
       const createdHostel = hostelService.createHostel(data);
-      setCreatedHostelId(createdHostel.id);
+      setCreatedHostelId(typeof createdHostel.id === 'number' ? createdHostel.id : Number(createdHostel.id));
       setToast({
         open: true,
         type: 'success',

@@ -6,6 +6,7 @@ import type { Hostel, HostelFormData } from '../types/hostel';
 import type { Id } from '../types/common';
 import * as db from './db';
 import hostelData from '../mock/hostels.json';
+import tenantsData from '../mock/tenants.json';
 
 const ENTITY_KEY = 'hostels';
 
@@ -125,9 +126,6 @@ export function getArchitectureData(hostelId: number): import('../types/hostel')
     throw new Error('Hostel not found');
   }
 
-  // Import tenant data to match room assignments
-  const tenantsData = require('../mock/tenants.json');
-  
   // Generate architecture structure
   const floors: import('../types/hostel').Floor[] = [];
   let totalRooms = 0;

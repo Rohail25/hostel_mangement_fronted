@@ -10,7 +10,7 @@ interface ToastMessage {
 let toastIdCounter = 0;
 
 export const useToast = () => {
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [_toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = `toast-${toastIdCounter++}`;

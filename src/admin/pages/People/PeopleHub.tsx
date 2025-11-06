@@ -16,7 +16,7 @@ import tenantsData from '../../mock/tenants.json';
 import employeesData from '../../mock/employees.json';
 import hostels from '../../mock/hostels.json';
 import * as hostelService from '../../services/hostel.service';
-import type { ArchitectureData, Floor, Room, Seat } from '../../types/hostel';
+import type { ArchitectureData } from '../../types/hostel';
 import { 
   EnvelopeIcon, 
   PhoneIcon, 
@@ -250,10 +250,6 @@ const PeopleHub: React.FC = () => {
     return scoreRecord;
   };
 
-  const getCurrentScore = (type: 'Tenant' | 'Employee', id: number) => {
-    const score = getScore(type, id);
-    return score ? score.average : null;
-  };
 
   // Action handlers
   const handleView = (id: number, type: 'Tenant' | 'Employee') => {

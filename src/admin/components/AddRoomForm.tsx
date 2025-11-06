@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Modal } from './Modal';
-import { Input } from './Input';
 import { Button } from './Button';
 import type { RoomFormData } from '../types/hostel';
 
@@ -16,7 +14,7 @@ interface AddRoomFormProps {
 export const AddRoomForm: React.FC<AddRoomFormProps> = ({
   isOpen,
   onClose,
-  hostelId,
+  hostelId: _hostelId,
   maxFloors,
   onSubmit,
 }) => {

@@ -261,7 +261,8 @@ const VendorList: React.FC = () => {
 
   const handleScoreClick = (vendor: Vendor) => {
     setCurrentScoreVendor(vendor);
-    const existingScore = getScore(vendor.id);
+    const vendorId = typeof vendor.id === 'number' ? vendor.id : Number(vendor.id);
+    const existingScore = getScore(vendorId);
     if (existingScore) {
       setScoreForm({
         behavior: existingScore.behavior,
@@ -284,7 +285,8 @@ const VendorList: React.FC = () => {
     e.preventDefault();
     if (!currentScoreVendor) return;
 
-    const scoreRecord = saveScore(currentScoreVendor.id, scoreForm);
+    const vendorId = typeof currentScoreVendor.id === 'number' ? currentScoreVendor.id : Number(currentScoreVendor.id);
+    const scoreRecord = saveScore(vendorId, scoreForm);
 
     setToast({
       open: true,
@@ -771,8 +773,9 @@ const VendorScoreCardView: React.FC<VendorScoreCardViewProps> = ({
   getScore,
   getScoreHistory,
 }) => {
-  const currentScore = getScore(vendor.id);
-  const scoreHistory = getScoreHistory(vendor.id);
+  const vendorId = typeof vendor.id === 'number' ? vendor.id : Number(vendor.id);
+  const currentScore = getScore(vendorId);
+  const scoreHistory = getScoreHistory(vendorId);
 
   const getScoreColor = (score: number) => {
     if (score >= 4.5) return 'text-green-600';

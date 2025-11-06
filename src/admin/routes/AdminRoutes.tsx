@@ -6,7 +6,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AdminLayout } from '../layout/AdminLayout';
-import ROUTES from './routePaths';
 
 // Lazy load pages for better performance
 const Overview = React.lazy(() => import('../pages/Overview'));
