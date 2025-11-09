@@ -10,8 +10,6 @@ import { AdminLayout } from '../layout/AdminLayout';
 // Lazy load pages for better performance
 const Overview = React.lazy(() => import('../pages/Overview'));
 const PeopleHub = React.lazy(() => import('../pages/People/PeopleHub'));
-const TenantsList = React.lazy(() => import('../pages/People/TenantsList'));
-const EmployeesList = React.lazy(() => import('../pages/People/EmployeesList'));
 const AccountsList = React.lazy(() => import('../pages/Accounts/AccountsList'));
 const HostelList = React.lazy(() => import('../pages/Hostel/HostelList'));
 const HostelCreate = React.lazy(() => import('../pages/Hostel/HostelCreate'));

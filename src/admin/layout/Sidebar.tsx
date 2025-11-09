@@ -109,7 +109,6 @@ export default function Sidebar({ isCollapsed }: { isCollapsed: boolean }) {
       <nav className="flex-1 overflow-y-auto py-2 px-4 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path || (item.path === ROUTES.PEOPLE && isPeopleActive);
 
           return (
             <React.Fragment key={item.path}>
