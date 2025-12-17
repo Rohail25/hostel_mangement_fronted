@@ -14,6 +14,10 @@ export default defineConfig({
         manualChunks: (id) => {
           // Vendor chunks - split large libraries into separate chunks
           if (id.includes('node_modules')) {
+            // React core libraries - must be first
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react';
+            }
             // PDF libraries - split separately (very large)
             if (id.includes('jspdf')) {
               return 'vendor-jspdf';
@@ -33,13 +37,10 @@ export default defineConfig({
             if (id.includes('react-router')) {
               return 'vendor-react-router';
             }
-            // React Hook Form
-            if (id.includes('react-hook-form')) {
-              return 'vendor-react-hook-form';
-            }
-            // Zod (validation)
-            if (id.includes('zod')) {
-              return 'vendor-zod';
+            // Form libraries - group together to avoid circular dependency issues
+            // react-hook-form, @hookform/resolvers, and zod are tightly coupled
+            if (id.includes('react-hook-form') || id.includes('@hookform/resolvers') || id.includes('zod')) {
+              return 'vendor-forms';
             }
             // Heroicons
             if (id.includes('@heroicons')) {
@@ -48,10 +49,6 @@ export default defineConfig({
             // Axios
             if (id.includes('axios')) {
               return 'vendor-axios';
-            }
-            // React core libraries
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'vendor-react';
             }
             // All other node_modules
             return 'vendor-other';
