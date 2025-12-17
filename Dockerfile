@@ -7,13 +7,15 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies with clean install
 RUN npm ci --only=production=false
 
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application with production optimizations
+# Set NODE_ENV to production for optimal build
+ENV NODE_ENV=production
 RUN npm run build
 
 # Stage 2: Serve with nginx

@@ -8,50 +8,33 @@ export default defineConfig({
   build: {
     // Increase chunk size warning limit to 600KB (from default 500KB)
     chunkSizeWarningLimit: 600,
+    // Ensure proper module format for production
+    target: 'esnext',
+    minify: 'esbuild',
+    // Source maps for debugging (can be disabled in production)
+    sourcemap: false,
     rollupOptions: {
       output: {
-        // Manual chunk splitting for better code splitting
+        // Ensure proper chunk format
+        format: 'es',
+        // Manual chunk splitting - only split very large libraries
+        // Let Vite handle smaller libraries automatically to avoid initialization issues
         manualChunks: (id) => {
-          // Vendor chunks - split large libraries into separate chunks
           if (id.includes('node_modules')) {
-            // React core libraries - must be first
+            // React core - always separate
             if (id.includes('react') || id.includes('react-dom')) {
               return 'vendor-react';
             }
-            // PDF libraries - split separately (very large)
-            if (id.includes('jspdf')) {
-              return 'vendor-jspdf';
+            // Very large libraries that should be split
+            if (id.includes('jspdf') || id.includes('html2canvas')) {
+              return 'vendor-pdf';
             }
-            if (id.includes('html2canvas')) {
-              return 'vendor-html2canvas';
-            }
-            // Recharts (charts library - very large)
             if (id.includes('recharts')) {
               return 'vendor-recharts';
             }
-            // Framer Motion (animations)
-            if (id.includes('framer-motion')) {
-              return 'vendor-framer-motion';
-            }
-            // React Router
-            if (id.includes('react-router')) {
-              return 'vendor-react-router';
-            }
-            // Form libraries - group together to avoid circular dependency issues
-            // react-hook-form, @hookform/resolvers, and zod are tightly coupled
-            if (id.includes('react-hook-form') || id.includes('@hookform/resolvers') || id.includes('zod')) {
-              return 'vendor-forms';
-            }
-            // Heroicons
-            if (id.includes('@heroicons')) {
-              return 'vendor-heroicons';
-            }
-            // Axios
-            if (id.includes('axios')) {
-              return 'vendor-axios';
-            }
-            // All other node_modules
-            return 'vendor-other';
+            // Let Vite automatically handle the rest to avoid circular dependency issues
+            // This includes react-hook-form, zod, @hookform/resolvers, etc.
+            // They'll be grouped automatically by Vite based on actual dependencies
           }
         },
       },
