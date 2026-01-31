@@ -449,24 +449,57 @@ const PeopleHub: React.FC = () => {
           setEditingTenantId(id);
           
           // Populate form with tenant data
+          const emergencyContact = typeof tenantData.emergencyContact === 'string' 
+            ? JSON.parse(tenantData.emergencyContact) 
+            : tenantData.emergencyContact || {};
+          const nearestRelative = typeof tenantData.nearestRelative === 'string'
+            ? JSON.parse(tenantData.nearestRelative)
+            : tenantData.nearestRelative || {};
+            
           setTenantFormData({
-            firstName: tenantData.firstName || '',
-            lastName: tenantData.lastName || '',
+            fullName: tenantData.fullName || tenantData.firstName || tenantData.name || '',
+            fatherName: tenantData.fatherName || tenantData.lastName || '',
+            firstName: tenantData.firstName || tenantData.fullName || tenantData.name || '', // Keep for backward compatibility
+            lastName: tenantData.lastName || tenantData.fatherName || '', // Keep for backward compatibility
             email: tenantData.email || '',
             phone: tenantData.phone || '',
+            whatsappNumber: tenantData.whatsappNumber || '',
             gender: tenantData.gender || '',
+            genderOther: tenantData.genderOther || '',
             dateOfBirth: tenantData.dateOfBirth ? new Date(tenantData.dateOfBirth).toISOString().split('T')[0] : '',
             cnicNumber: tenantData.cnicNumber || '',
             profilePhoto: null, // Keep as null, user can upload new one if needed
             previousProfilePhoto: tenantData.profilePhoto || null,
-            previousDocuments: tenantData.documents || null,
-            profession: tenantData.profession || '',
-            professionDetails: tenantData.professionDetails || '',
-            professionDocuments: null,
-            previousProfessionDocuments: tenantData.professionDocuments || null,
-            emergencyContactName: tenantData.emergencyContactName || '',
-            emergencyContactNumber: tenantData.emergencyContactNumber || '',
-            emergencyContactRelation: tenantData.emergencyContactRelation || '',
+            attachments: null,
+            previousAttachments: tenantData.attachments || null,
+            professionType: tenantData.professionType || '',
+            academicName: tenantData.academicName || '',
+            academicAddress: tenantData.academicAddress || '',
+            academicLocation: tenantData.academicLocation || '',
+            studentCardNo: tenantData.studentCardNo || '',
+            academicAttachments: null,
+            jobTitle: tenantData.jobTitle || '',
+            companyName: tenantData.companyName || '',
+            jobAddress: tenantData.jobAddress || '',
+            jobLocation: tenantData.jobLocation || '',
+            jobIdNo: tenantData.jobIdNo || '',
+            jobAttachments: null,
+            businessName: tenantData.businessName || '',
+            businessAddress: tenantData.businessAddress || '',
+            businessLocation: tenantData.businessLocation || '',
+            businessAttachments: null,
+            professionDescription: tenantData.professionDescription || '',
+            emergencyContactName: emergencyContact.name || '',
+            emergencyContactNumber: emergencyContact.phone || '',
+            emergencyContactWhatsapp: tenantData.emergencyContactWhatsapp || emergencyContact.whatsappNumber || '',
+            emergencyContactRelation: emergencyContact.relationship || '',
+            emergencyContactRelationOther: tenantData.emergencyContactRelationOther || emergencyContact.relationOther || '',
+            anyDisease: tenantData.anyDisease || '',
+            bloodGroup: tenantData.bloodGroup || '',
+            nearestRelativeContact: nearestRelative.contactNumber || '',
+            nearestRelativeWhatsapp: nearestRelative.whatsappNumber || '',
+            nearestRelativeRelation: nearestRelative.relation || '',
+            nearestRelativeRelationOther: nearestRelative.relationOther || '',
             hostelId: tenantData.activeAllocation?.hostel?.id?.toString() || '',
             floorId: tenantData.activeAllocation?.floor?.id?.toString() || '',
             roomId: tenantData.activeAllocation?.room?.id?.toString() || '',
@@ -475,6 +508,14 @@ const PeopleHub: React.FC = () => {
             leaseEndDate: tenantData.leaseEndDate ? new Date(tenantData.leaseEndDate).toISOString().split('T')[0] : '',
             monthlyRent: tenantData.monthlyRent?.toString() || '',
             securityDeposit: tenantData.securityDeposit?.toString() || '',
+            lateFeesFine: tenantData.lateFeesFine || '',
+            lateFeesPercentage: tenantData.lateFeesPercentage?.toString() || '',
+            rentalDocument: null,
+            previousRentalDocument: tenantData.rentalDocument || null,
+            securityDepositFile: null,
+            previousSecurityDepositFile: tenantData.securityDepositFile || null,
+            advancedRentReceivedFile: null,
+            previousAdvancedRentReceivedFile: tenantData.advancedRentReceivedFile || null,
             documents: null, // Keep as null, user can upload new one if needed
           });
           
@@ -516,16 +557,25 @@ const PeopleHub: React.FC = () => {
           const roleId = roleOption ? roleOption.value : '';
           console.log('Found role ID:', roleId);
           
+          // Parse emergency contact and nearest relative
+          const emergencyContact = typeof employeeData.employee.emergencyContact === 'string'
+            ? JSON.parse(employeeData.employee.emergencyContact)
+            : employeeData.employee.emergencyContact || {};
+          const nearestRelative = typeof employeeData.employee.nearestRelative === 'string'
+            ? JSON.parse(employeeData.employee.nearestRelative)
+            : employeeData.employee.nearestRelative || {};
+          
           // Populate form with employee data
           setEmployeeFormData({
             name: employeeData.user.username || '',
+            fatherName: employeeData.employee.fatherName || '',
             email: employeeData.user.email || '',
             phone: employeeData.user.phone || '',
+            whatsappNumber: employeeData.employee.whatsappNumber || '',
             username: employeeData.user.username || '',
             password: '', // Don't pre-fill password
             profilePhoto: null, // Keep as null, user can upload new one if needed
             previousProfilePhoto: employeeData.employee.profilePhoto || null,
-            previousDocuments: employeeData.employee.documents || null,
             address: {
               street: employeeData.employee.address?.street || '',
               city: employeeData.employee.address?.city || '',
@@ -538,8 +588,43 @@ const PeopleHub: React.FC = () => {
             salaryType: employeeData.employee.salaryType || 'monthly',
             workingHours: employeeData.employee.workingHours || '',
             reference: employeeData.employee.reference || '',
-            documents: [], // Keep as empty array, user can upload new ones if needed
+            cnicDocuments: null,
+            previousCnicDocuments: employeeData.employee.cnicDocuments || null,
+            agreementDocument: null,
+            previousAgreementDocument: employeeData.employee.agreementDocument || null,
+            policeCharacterCertificate: null,
+            previousPoliceCharacterCertificate: employeeData.employee.policeCharacterCertificate || null,
+            anyOtherDocuments: null,
+            previousAnyOtherDocuments: employeeData.employee.anyOtherDocuments || null,
             notes: employeeData.employee.notes || '',
+            professionType: employeeData.employee.professionType || '',
+            academicName: employeeData.employee.academicName || '',
+            academicAddress: employeeData.employee.academicAddress || '',
+            academicLocation: employeeData.employee.academicLocation || '',
+            studentCardNo: employeeData.employee.studentCardNo || '',
+            academicAttachments: null,
+            jobTitle: employeeData.employee.jobTitle || '',
+            companyName: employeeData.employee.companyName || '',
+            jobAddress: employeeData.employee.jobAddress || '',
+            jobLocation: employeeData.employee.jobLocation || '',
+            jobIdNo: employeeData.employee.jobIdNo || '',
+            jobAttachments: null,
+            businessName: employeeData.employee.businessName || '',
+            businessAddress: employeeData.employee.businessAddress || '',
+            businessLocation: employeeData.employee.businessLocation || '',
+            businessAttachments: null,
+            professionDescription: employeeData.employee.professionDescription || '',
+            emergencyContactName: emergencyContact.name || '',
+            emergencyContactNumber: emergencyContact.phone || '',
+            emergencyContactWhatsapp: employeeData.employee.emergencyContactWhatsapp || emergencyContact.whatsappNumber || '',
+            emergencyContactRelation: emergencyContact.relationship || '',
+            emergencyContactRelationOther: employeeData.employee.emergencyContactRelationOther || emergencyContact.relationOther || '',
+            anyDisease: employeeData.employee.anyDisease || '',
+            bloodGroup: employeeData.employee.bloodGroup || '',
+            nearestRelativeContact: nearestRelative.contactNumber || '',
+            nearestRelativeWhatsapp: nearestRelative.whatsappNumber || '',
+            nearestRelativeRelation: nearestRelative.relation || '',
+            nearestRelativeRelationOther: nearestRelative.relationOther || '',
           });
           
           console.log('Form data populated successfully');
@@ -574,23 +659,72 @@ const PeopleHub: React.FC = () => {
           // Set editing prospect ID
           setEditingProspectId(id);
           
+          // Parse profession detail JSON if it exists
+          const professionDetail = prospectData.prospect.professionDetail 
+            ? (typeof prospectData.prospect.professionDetail === 'string' 
+                ? JSON.parse(prospectData.prospect.professionDetail) 
+                : prospectData.prospect.professionDetail)
+            : {};
+          
+          // Parse emergency contact JSON if it exists
+          const emergencyContact = prospectData.prospect.emergencyContact
+            ? (typeof prospectData.prospect.emergencyContact === 'string'
+                ? JSON.parse(prospectData.prospect.emergencyContact)
+                : prospectData.prospect.emergencyContact)
+            : {};
+          
+          // Parse nearest relative JSON if it exists
+          const nearestRelative = prospectData.prospect.nearestRelative
+            ? (typeof prospectData.prospect.nearestRelative === 'string'
+                ? JSON.parse(prospectData.prospect.nearestRelative)
+                : prospectData.prospect.nearestRelative)
+            : {};
+          
           // Populate form with prospect data
           setProspectFormData({
-            firstName: prospectData.prospect.firstName || '',
+            fullName: prospectData.prospect.fullName || prospectData.prospect.name || '',
+            fatherName: prospectData.prospect.fatherName || '',
+            firstName: prospectData.prospect.firstName || prospectData.prospect.fullName || '',
             lastName: prospectData.prospect.lastName || '',
             email: prospectData.prospect.email || '',
             phone: prospectData.prospect.phone || '',
+            whatsappNumber: prospectData.prospect.whatsappNumber || '',
             gender: prospectData.prospect.gender || '',
+            genderOther: prospectData.prospect.genderOther || '',
             dateOfBirth: prospectData.prospect.dateOfBirth ? new Date(prospectData.prospect.dateOfBirth).toISOString().split('T')[0] : '',
             cnicNumber: prospectData.prospect.cnicNumber || '',
-            profilePhoto: null, // Keep as null, user can upload new one if needed
+            profilePhoto: null,
+            attachments: null,
             previousProfilePhoto: prospectData.prospect.profilePhoto || null,
-            previousDocuments: prospectData.prospect.documents || null,
-            profession: prospectData.prospect.profession || '',
-            professionDetails: prospectData.prospect.professionDetails || '',
-            professionDocuments: null,
-            previousProfessionDocuments: prospectData.prospect.professionDocuments || null,
-            documents: null, // Keep as null, user can upload new one if needed
+            previousAttachments: prospectData.prospect.attachments || null,
+            professionType: prospectData.prospect.professionType || '',
+            academicName: professionDetail.academicName || '',
+            academicAddress: professionDetail.academicAddress || '',
+            academicLocation: professionDetail.academicLocation || '',
+            studentCardNo: professionDetail.studentCardNo || '',
+            academicAttachments: null,
+            jobTitle: professionDetail.jobTitle || '',
+            companyName: professionDetail.companyName || '',
+            jobAddress: professionDetail.jobAddress || '',
+            jobLocation: professionDetail.jobLocation || '',
+            jobIdNo: professionDetail.jobIdNo || '',
+            jobAttachments: null,
+            businessName: professionDetail.businessName || '',
+            businessAddress: professionDetail.businessAddress || '',
+            businessLocation: professionDetail.businessLocation || '',
+            businessAttachments: null,
+            professionDescription: prospectData.prospect.professionDescription || '',
+            emergencyContactName: emergencyContact.name || '',
+            emergencyContactNumber: emergencyContact.phone || '',
+            emergencyContactWhatsapp: prospectData.prospect.emergencyContactWhatsapp || emergencyContact.whatsappNumber || '',
+            emergencyContactRelation: emergencyContact.relationship || '',
+            emergencyContactRelationOther: prospectData.prospect.emergencyContactRelationOther || emergencyContact.relationOther || '',
+            anyDisease: prospectData.prospect.anyDisease || '',
+            bloodGroup: prospectData.prospect.bloodGroup || '',
+            nearestRelativeContact: nearestRelative.contactNumber || '',
+            nearestRelativeWhatsapp: nearestRelative.whatsappNumber || '',
+            nearestRelativeRelation: nearestRelative.relation || '',
+            nearestRelativeRelationOther: nearestRelative.relationOther || '',
           });
           
           // Open the add modal in edit mode - form will load data from initialData prop
@@ -723,22 +857,152 @@ const PeopleHub: React.FC = () => {
 
   // Wrapper function for TenantForm onSubmit - receives formData from TenantForm component
   const handleTenantSubmit = async (formDataFromComponent: TenantFormData): Promise<void> => {
-    const tenantName = `${formDataFromComponent.firstName} ${formDataFromComponent.lastName}`;
+    const tenantName = formDataFromComponent.fullName || `${formDataFromComponent.firstName || ''} ${formDataFromComponent.lastName || ''}`.trim();
     const isEditing = editingTenantId !== null;
     
     // Create FormData for file uploads
     const formData = new FormData();
-    formData.append('firstName', formDataFromComponent.firstName);
-    formData.append('lastName', formDataFromComponent.lastName);
+    
+    // Personal Information
+    formData.append('fullName', formDataFromComponent.fullName);
+    formData.append('fatherName', formDataFromComponent.fatherName);
+    formData.append('firstName', formDataFromComponent.fullName); // Keep for backward compatibility
+    formData.append('lastName', formDataFromComponent.fatherName); // Keep for backward compatibility
     formData.append('email', formDataFromComponent.email);
     formData.append('phone', formDataFromComponent.phone);
+    if (formDataFromComponent.whatsappNumber) {
+      formData.append('whatsappNumber', formDataFromComponent.whatsappNumber);
+    }
     formData.append('gender', formDataFromComponent.gender);
+    if (formDataFromComponent.gender === 'other' && formDataFromComponent.genderOther) {
+      formData.append('genderOther', formDataFromComponent.genderOther);
+    }
     if (formDataFromComponent.dateOfBirth) {
       formData.append('dateOfBirth', formDataFromComponent.dateOfBirth);
     }
     if (formDataFromComponent.cnicNumber) {
       formData.append('cnicNumber', formDataFromComponent.cnicNumber);
     }
+    if (formDataFromComponent.profilePhoto) {
+      formData.append('profilePhoto', formDataFromComponent.profilePhoto);
+    }
+    // Handle multiple attachments
+    if (formDataFromComponent.attachments) {
+      Array.from(formDataFromComponent.attachments).forEach((file) => {
+        formData.append('attachments', file);
+      });
+    }
+    
+    // Professional fields
+    if (formDataFromComponent.professionType) {
+      formData.append('professionType', formDataFromComponent.professionType);
+    }
+    
+    // Student fields
+    if (formDataFromComponent.professionType === 'student') {
+      if (formDataFromComponent.academicName) {
+        formData.append('academicName', formDataFromComponent.academicName);
+      }
+      if (formDataFromComponent.academicAddress) {
+        formData.append('academicAddress', formDataFromComponent.academicAddress);
+      }
+      if (formDataFromComponent.academicLocation) {
+        formData.append('academicLocation', formDataFromComponent.academicLocation);
+      }
+      if (formDataFromComponent.studentCardNo) {
+        formData.append('studentCardNo', formDataFromComponent.studentCardNo);
+      }
+      if (formDataFromComponent.academicAttachments) {
+        Array.from(formDataFromComponent.academicAttachments).forEach((file) => {
+          formData.append('academicAttachments', file);
+        });
+      }
+    }
+    
+    // Job fields
+    if (formDataFromComponent.professionType === 'job') {
+      if (formDataFromComponent.jobTitle) {
+        formData.append('jobTitle', formDataFromComponent.jobTitle);
+      }
+      if (formDataFromComponent.companyName) {
+        formData.append('companyName', formDataFromComponent.companyName);
+      }
+      if (formDataFromComponent.jobAddress) {
+        formData.append('jobAddress', formDataFromComponent.jobAddress);
+      }
+      if (formDataFromComponent.jobLocation) {
+        formData.append('jobLocation', formDataFromComponent.jobLocation);
+      }
+      if (formDataFromComponent.jobIdNo) {
+        formData.append('jobIdNo', formDataFromComponent.jobIdNo);
+      }
+      if (formDataFromComponent.jobAttachments) {
+        Array.from(formDataFromComponent.jobAttachments).forEach((file) => {
+          formData.append('jobAttachments', file);
+        });
+      }
+    }
+    
+    // Business fields
+    if (formDataFromComponent.professionType === 'business') {
+      if (formDataFromComponent.businessName) {
+        formData.append('businessName', formDataFromComponent.businessName);
+      }
+      if (formDataFromComponent.businessAddress) {
+        formData.append('businessAddress', formDataFromComponent.businessAddress);
+      }
+      if (formDataFromComponent.businessLocation) {
+        formData.append('businessLocation', formDataFromComponent.businessLocation);
+      }
+      if (formDataFromComponent.businessAttachments) {
+        Array.from(formDataFromComponent.businessAttachments).forEach((file) => {
+          formData.append('businessAttachments', file);
+        });
+      }
+    }
+    
+    if (formDataFromComponent.professionDescription) {
+      formData.append('professionDescription', formDataFromComponent.professionDescription);
+    }
+    
+    // Emergency contact fields
+    if (formDataFromComponent.emergencyContactName) {
+      formData.append('emergencyContactName', formDataFromComponent.emergencyContactName);
+    }
+    if (formDataFromComponent.emergencyContactNumber) {
+      formData.append('emergencyContactNumber', formDataFromComponent.emergencyContactNumber);
+    }
+    if (formDataFromComponent.emergencyContactWhatsapp) {
+      formData.append('emergencyContactWhatsapp', formDataFromComponent.emergencyContactWhatsapp);
+    }
+    if (formDataFromComponent.emergencyContactRelation) {
+      formData.append('emergencyContactRelation', formDataFromComponent.emergencyContactRelation);
+    }
+    if (formDataFromComponent.emergencyContactRelation === 'other' && formDataFromComponent.emergencyContactRelationOther) {
+      formData.append('emergencyContactRelationOther', formDataFromComponent.emergencyContactRelationOther);
+    }
+    if (formDataFromComponent.anyDisease) {
+      formData.append('anyDisease', formDataFromComponent.anyDisease);
+    }
+    if (formDataFromComponent.bloodGroup) {
+      formData.append('bloodGroup', formDataFromComponent.bloodGroup);
+    }
+    
+    // Nearest Relative fields
+    if (formDataFromComponent.nearestRelativeContact) {
+      formData.append('nearestRelativeContact', formDataFromComponent.nearestRelativeContact);
+    }
+    if (formDataFromComponent.nearestRelativeWhatsapp) {
+      formData.append('nearestRelativeWhatsapp', formDataFromComponent.nearestRelativeWhatsapp);
+    }
+    if (formDataFromComponent.nearestRelativeRelation) {
+      formData.append('nearestRelativeRelation', formDataFromComponent.nearestRelativeRelation);
+    }
+    if (formDataFromComponent.nearestRelativeRelation === 'other' && formDataFromComponent.nearestRelativeRelationOther) {
+      formData.append('nearestRelativeRelationOther', formDataFromComponent.nearestRelativeRelationOther);
+    }
+    
+    // Hostel Info fields
     if (formDataFromComponent.hostelId) {
       formData.append('hostelId', formDataFromComponent.hostelId);
     }
@@ -759,35 +1023,28 @@ const PeopleHub: React.FC = () => {
     }
     formData.append('monthlyRent', formDataFromComponent.monthlyRent || '0');
     formData.append('securityDeposit', formDataFromComponent.securityDeposit || '0');
-    
-    // Professional fields
-    if (formDataFromComponent.profession) {
-      formData.append('profession', formDataFromComponent.profession);
+    if (formDataFromComponent.lateFeesFine) {
+      formData.append('lateFeesFine', formDataFromComponent.lateFeesFine);
     }
-    if (formDataFromComponent.professionDetails) {
-      formData.append('professionDetails', formDataFromComponent.professionDetails);
-    }
-    if (formDataFromComponent.professionDocuments) {
-      formData.append('professionDocuments', formDataFromComponent.professionDocuments);
+    if (formDataFromComponent.lateFeesFine === 'Yes' && formDataFromComponent.lateFeesPercentage) {
+      formData.append('lateFeesPercentage', formDataFromComponent.lateFeesPercentage);
     }
     
-    // Emergency contact fields
-    if (formDataFromComponent.emergencyContactName) {
-      formData.append('emergencyContactName', formDataFromComponent.emergencyContactName);
+    // Hostel document fields
+    if (formDataFromComponent.rentalDocument) {
+      Array.from(formDataFromComponent.rentalDocument).forEach((file) => {
+        formData.append('rentalDocument', file);
+      });
     }
-    if (formDataFromComponent.emergencyContactNumber) {
-      formData.append('emergencyContactNumber', formDataFromComponent.emergencyContactNumber);
+    if (formDataFromComponent.securityDepositFile) {
+      Array.from(formDataFromComponent.securityDepositFile).forEach((file) => {
+        formData.append('securityDepositFile', file);
+      });
     }
-    if (formDataFromComponent.emergencyContactRelation) {
-      formData.append('emergencyContactRelation', formDataFromComponent.emergencyContactRelation);
-    }
-    
-    if (formDataFromComponent.profilePhoto) {
-      formData.append('profilePhoto', formDataFromComponent.profilePhoto);
-    }
-    
-    if (formDataFromComponent.documents) {
-      formData.append('documents', formDataFromComponent.documents);
+    if (formDataFromComponent.advancedRentReceivedFile) {
+      Array.from(formDataFromComponent.advancedRentReceivedFile).forEach((file) => {
+        formData.append('advancedRentReceivedFile', file);
+      });
     }
 
     try {
@@ -861,7 +1118,7 @@ const PeopleHub: React.FC = () => {
       // Create FormData for multipart/form-data submission
       const formData = new FormData();
       
-      // User fields
+      // User fields (from Hostel Access tab)
       formData.append('username', formDataFromComponent.username);
       formData.append('email', formDataFromComponent.email);
       formData.append('phone', formDataFromComponent.phone);
@@ -869,8 +1126,16 @@ const PeopleHub: React.FC = () => {
         formData.append('password', formDataFromComponent.password);
       }
       
-      // Employee fields
+      // Personal Information fields
       formData.append('name', formDataFromComponent.name);
+      if (formDataFromComponent.fatherName) {
+        formData.append('fatherName', formDataFromComponent.fatherName);
+      }
+      if (formDataFromComponent.whatsappNumber) {
+        formData.append('whatsappNumber', formDataFromComponent.whatsappNumber);
+      }
+      
+      // Employee fields
       if (formDataFromComponent.roleId) {
         formData.append('roleId', formDataFromComponent.roleId);
       }
@@ -904,15 +1169,142 @@ const PeopleHub: React.FC = () => {
         formData.append('address[country]', formDataFromComponent.address.country);
       }
       
-      // Files
+      // Files - Profile Photo
       if (formDataFromComponent.profilePhoto) {
         formData.append('profilePhoto', formDataFromComponent.profilePhoto);
       }
-      // Append multiple documents
-      if (formDataFromComponent.documents && formDataFromComponent.documents.length > 0) {
-        formDataFromComponent.documents.forEach((doc) => {
-          formData.append('documents', doc);
+      
+      // Files - CNIC Documents (max 2 images)
+      if (formDataFromComponent.cnicDocuments) {
+        Array.from(formDataFromComponent.cnicDocuments).forEach((file) => {
+          formData.append('cnicDocuments', file);
         });
+      }
+      
+      // Files - Agreement Document (1 image)
+      if (formDataFromComponent.agreementDocument) {
+        formData.append('agreementDocument', formDataFromComponent.agreementDocument);
+      }
+      
+      // Files - Police Character Certificate (1 image)
+      if (formDataFromComponent.policeCharacterCertificate) {
+        formData.append('policeCharacterCertificate', formDataFromComponent.policeCharacterCertificate);
+      }
+      
+      // Files - Any Other Documents (multiple files)
+      if (formDataFromComponent.anyOtherDocuments) {
+        Array.from(formDataFromComponent.anyOtherDocuments).forEach((file) => {
+          formData.append('anyOtherDocuments', file);
+        });
+      }
+      
+      // Professional fields
+      if (formDataFromComponent.professionType) {
+        formData.append('professionType', formDataFromComponent.professionType);
+      }
+      
+      // Student fields
+      if (formDataFromComponent.professionType === 'student') {
+        if (formDataFromComponent.academicName) {
+          formData.append('academicName', formDataFromComponent.academicName);
+        }
+        if (formDataFromComponent.academicAddress) {
+          formData.append('academicAddress', formDataFromComponent.academicAddress);
+        }
+        if (formDataFromComponent.academicLocation) {
+          formData.append('academicLocation', formDataFromComponent.academicLocation);
+        }
+        if (formDataFromComponent.studentCardNo) {
+          formData.append('studentCardNo', formDataFromComponent.studentCardNo);
+        }
+        if (formDataFromComponent.academicAttachments) {
+          Array.from(formDataFromComponent.academicAttachments).forEach((file) => {
+            formData.append('academicAttachments', file);
+          });
+        }
+      }
+      
+      // Job fields
+      if (formDataFromComponent.professionType === 'job') {
+        if (formDataFromComponent.jobTitle) {
+          formData.append('jobTitle', formDataFromComponent.jobTitle);
+        }
+        if (formDataFromComponent.companyName) {
+          formData.append('companyName', formDataFromComponent.companyName);
+        }
+        if (formDataFromComponent.jobAddress) {
+          formData.append('jobAddress', formDataFromComponent.jobAddress);
+        }
+        if (formDataFromComponent.jobLocation) {
+          formData.append('jobLocation', formDataFromComponent.jobLocation);
+        }
+        if (formDataFromComponent.jobIdNo) {
+          formData.append('jobIdNo', formDataFromComponent.jobIdNo);
+        }
+        if (formDataFromComponent.jobAttachments) {
+          Array.from(formDataFromComponent.jobAttachments).forEach((file) => {
+            formData.append('jobAttachments', file);
+          });
+        }
+      }
+      
+      // Business fields
+      if (formDataFromComponent.professionType === 'business') {
+        if (formDataFromComponent.businessName) {
+          formData.append('businessName', formDataFromComponent.businessName);
+        }
+        if (formDataFromComponent.businessAddress) {
+          formData.append('businessAddress', formDataFromComponent.businessAddress);
+        }
+        if (formDataFromComponent.businessLocation) {
+          formData.append('businessLocation', formDataFromComponent.businessLocation);
+        }
+        if (formDataFromComponent.businessAttachments) {
+          Array.from(formDataFromComponent.businessAttachments).forEach((file) => {
+            formData.append('businessAttachments', file);
+          });
+        }
+      }
+      
+      if (formDataFromComponent.professionDescription) {
+        formData.append('professionDescription', formDataFromComponent.professionDescription);
+      }
+      
+      // Emergency fields
+      if (formDataFromComponent.emergencyContactName) {
+        formData.append('emergencyContactName', formDataFromComponent.emergencyContactName);
+      }
+      if (formDataFromComponent.emergencyContactNumber) {
+        formData.append('emergencyContactNumber', formDataFromComponent.emergencyContactNumber);
+      }
+      if (formDataFromComponent.emergencyContactWhatsapp) {
+        formData.append('emergencyContactWhatsapp', formDataFromComponent.emergencyContactWhatsapp);
+      }
+      if (formDataFromComponent.emergencyContactRelation) {
+        formData.append('emergencyContactRelation', formDataFromComponent.emergencyContactRelation);
+      }
+      if (formDataFromComponent.emergencyContactRelation === 'other' && formDataFromComponent.emergencyContactRelationOther) {
+        formData.append('emergencyContactRelationOther', formDataFromComponent.emergencyContactRelationOther);
+      }
+      if (formDataFromComponent.anyDisease) {
+        formData.append('anyDisease', formDataFromComponent.anyDisease);
+      }
+      if (formDataFromComponent.bloodGroup) {
+        formData.append('bloodGroup', formDataFromComponent.bloodGroup);
+      }
+      
+      // Nearest Relative fields
+      if (formDataFromComponent.nearestRelativeContact) {
+        formData.append('nearestRelativeContact', formDataFromComponent.nearestRelativeContact);
+      }
+      if (formDataFromComponent.nearestRelativeWhatsapp) {
+        formData.append('nearestRelativeWhatsapp', formDataFromComponent.nearestRelativeWhatsapp);
+      }
+      if (formDataFromComponent.nearestRelativeRelation) {
+        formData.append('nearestRelativeRelation', formDataFromComponent.nearestRelativeRelation);
+      }
+      if (formDataFromComponent.nearestRelativeRelation === 'other' && formDataFromComponent.nearestRelativeRelationOther) {
+        formData.append('nearestRelativeRelationOther', formDataFromComponent.nearestRelativeRelationOther);
       }
 
       let response;
@@ -956,7 +1348,7 @@ const PeopleHub: React.FC = () => {
 
   // Wrapper function for ProspectForm onSubmit - receives formData from ProspectForm component
   const handleProspectSubmit = async (formDataFromComponent: ProspectFormData): Promise<void> => {
-    const prospectName = `${formDataFromComponent.firstName} ${formDataFromComponent.lastName}`;
+    const prospectName = formDataFromComponent.fullName || `${formDataFromComponent.firstName || ''} ${formDataFromComponent.lastName || ''}`.trim();
     const isEditing = editingProspectId !== null;
     
     try {
@@ -969,35 +1361,144 @@ const PeopleHub: React.FC = () => {
 
       // Create FormData for file uploads
       const formData = new FormData();
-      formData.append('firstName', formDataFromComponent.firstName);
-      formData.append('lastName', formDataFromComponent.lastName);
+      
+      // Personal Information
+      formData.append('fullName', formDataFromComponent.fullName);
+      formData.append('fatherName', formDataFromComponent.fatherName);
+      formData.append('firstName', formDataFromComponent.fullName); // Keep for backward compatibility
+      formData.append('lastName', formDataFromComponent.fatherName); // Keep for backward compatibility
       formData.append('email', formDataFromComponent.email);
       formData.append('phone', formDataFromComponent.phone);
+      if (formDataFromComponent.whatsappNumber) {
+        formData.append('whatsappNumber', formDataFromComponent.whatsappNumber);
+      }
       formData.append('gender', formDataFromComponent.gender);
+      if (formDataFromComponent.gender === 'other' && formDataFromComponent.genderOther) {
+        formData.append('genderOther', formDataFromComponent.genderOther);
+      }
       if (formDataFromComponent.dateOfBirth) {
         formData.append('dateOfBirth', formDataFromComponent.dateOfBirth);
       }
       if (formDataFromComponent.cnicNumber) {
         formData.append('cnicNumber', formDataFromComponent.cnicNumber);
       }
-      
-      // Professional fields
-      if (formDataFromComponent.profession) {
-        formData.append('profession', formDataFromComponent.profession);
-      }
-      if (formDataFromComponent.professionDetails) {
-        formData.append('professionDetails', formDataFromComponent.professionDetails);
-      }
-      
-      // Files
       if (formDataFromComponent.profilePhoto) {
         formData.append('profilePhoto', formDataFromComponent.profilePhoto);
       }
-      if (formDataFromComponent.documents) {
-        formData.append('documents', formDataFromComponent.documents);
+      // Handle multiple attachments
+      if (formDataFromComponent.attachments) {
+        Array.from(formDataFromComponent.attachments).forEach((file) => {
+          formData.append('attachments', file);
+        });
       }
-      if (formDataFromComponent.professionDocuments) {
-        formData.append('professionDocuments', formDataFromComponent.professionDocuments);
+      
+      // Professional fields
+      if (formDataFromComponent.professionType) {
+        formData.append('professionType', formDataFromComponent.professionType);
+      }
+      
+      // Student fields
+      if (formDataFromComponent.professionType === 'student') {
+        if (formDataFromComponent.academicName) {
+          formData.append('academicName', formDataFromComponent.academicName);
+        }
+        if (formDataFromComponent.academicAddress) {
+          formData.append('academicAddress', formDataFromComponent.academicAddress);
+        }
+        if (formDataFromComponent.academicLocation) {
+          formData.append('academicLocation', formDataFromComponent.academicLocation);
+        }
+        if (formDataFromComponent.studentCardNo) {
+          formData.append('studentCardNo', formDataFromComponent.studentCardNo);
+        }
+        if (formDataFromComponent.academicAttachments) {
+          Array.from(formDataFromComponent.academicAttachments).forEach((file) => {
+            formData.append('academicAttachments', file);
+          });
+        }
+      }
+      
+      // Job fields
+      if (formDataFromComponent.professionType === 'job') {
+        if (formDataFromComponent.jobTitle) {
+          formData.append('jobTitle', formDataFromComponent.jobTitle);
+        }
+        if (formDataFromComponent.companyName) {
+          formData.append('companyName', formDataFromComponent.companyName);
+        }
+        if (formDataFromComponent.jobAddress) {
+          formData.append('jobAddress', formDataFromComponent.jobAddress);
+        }
+        if (formDataFromComponent.jobLocation) {
+          formData.append('jobLocation', formDataFromComponent.jobLocation);
+        }
+        if (formDataFromComponent.jobIdNo) {
+          formData.append('jobIdNo', formDataFromComponent.jobIdNo);
+        }
+        if (formDataFromComponent.jobAttachments) {
+          Array.from(formDataFromComponent.jobAttachments).forEach((file) => {
+            formData.append('jobAttachments', file);
+          });
+        }
+      }
+      
+      // Business fields
+      if (formDataFromComponent.professionType === 'business') {
+        if (formDataFromComponent.businessName) {
+          formData.append('businessName', formDataFromComponent.businessName);
+        }
+        if (formDataFromComponent.businessAddress) {
+          formData.append('businessAddress', formDataFromComponent.businessAddress);
+        }
+        if (formDataFromComponent.businessLocation) {
+          formData.append('businessLocation', formDataFromComponent.businessLocation);
+        }
+        if (formDataFromComponent.businessAttachments) {
+          Array.from(formDataFromComponent.businessAttachments).forEach((file) => {
+            formData.append('businessAttachments', file);
+          });
+        }
+      }
+      
+      if (formDataFromComponent.professionDescription) {
+        formData.append('professionDescription', formDataFromComponent.professionDescription);
+      }
+      
+      // Emergency contact fields
+      if (formDataFromComponent.emergencyContactName) {
+        formData.append('emergencyContactName', formDataFromComponent.emergencyContactName);
+      }
+      if (formDataFromComponent.emergencyContactNumber) {
+        formData.append('emergencyContactNumber', formDataFromComponent.emergencyContactNumber);
+      }
+      if (formDataFromComponent.emergencyContactWhatsapp) {
+        formData.append('emergencyContactWhatsapp', formDataFromComponent.emergencyContactWhatsapp);
+      }
+      if (formDataFromComponent.emergencyContactRelation) {
+        formData.append('emergencyContactRelation', formDataFromComponent.emergencyContactRelation);
+      }
+      if (formDataFromComponent.emergencyContactRelation === 'other' && formDataFromComponent.emergencyContactRelationOther) {
+        formData.append('emergencyContactRelationOther', formDataFromComponent.emergencyContactRelationOther);
+      }
+      if (formDataFromComponent.anyDisease) {
+        formData.append('anyDisease', formDataFromComponent.anyDisease);
+      }
+      if (formDataFromComponent.bloodGroup) {
+        formData.append('bloodGroup', formDataFromComponent.bloodGroup);
+      }
+      
+      // Nearest Relative fields
+      if (formDataFromComponent.nearestRelativeContact) {
+        formData.append('nearestRelativeContact', formDataFromComponent.nearestRelativeContact);
+      }
+      if (formDataFromComponent.nearestRelativeWhatsapp) {
+        formData.append('nearestRelativeWhatsapp', formDataFromComponent.nearestRelativeWhatsapp);
+      }
+      if (formDataFromComponent.nearestRelativeRelation) {
+        formData.append('nearestRelativeRelation', formDataFromComponent.nearestRelativeRelation);
+      }
+      if (formDataFromComponent.nearestRelativeRelation === 'other' && formDataFromComponent.nearestRelativeRelationOther) {
+        formData.append('nearestRelativeRelationOther', formDataFromComponent.nearestRelativeRelationOther);
       }
 
       let response;
@@ -1128,12 +1629,12 @@ const PeopleHub: React.FC = () => {
       // Data based on active section
       if (activeSection === 'Tenants' && filteredTenants.length > 0) {
         doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.text('Tenants List', 20, yPos);
         yPos += 8;
         
         doc.setFontSize(10);
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
         filteredTenants.slice(0, 20).forEach((tenant, index) => {
           if (yPos > 270) {
             doc.addPage();
@@ -1144,12 +1645,12 @@ const PeopleHub: React.FC = () => {
         });
       } else if (activeSection === 'Employees' && filteredEmployees.length > 0) {
         doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.text('Employees List', 20, yPos);
         yPos += 8;
         
         doc.setFontSize(10);
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
         filteredEmployees.slice(0, 20).forEach((employee, index) => {
           if (yPos > 270) {
             doc.addPage();
@@ -1160,12 +1661,12 @@ const PeopleHub: React.FC = () => {
         });
       } else if (activeSection === 'Prospects' && filteredProspects.length > 0) {
         doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.text('Prospects List', 20, yPos);
         yPos += 8;
         
         doc.setFontSize(10);
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
         filteredProspects.slice(0, 20).forEach((prospect, index) => {
           if (yPos > 270) {
             doc.addPage();

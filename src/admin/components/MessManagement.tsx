@@ -16,7 +16,7 @@ import type { Column } from './DataTable';
 import type { MessEntry, MessFormData, MealType } from '../types/hostel';
 import type { ToastType } from '../types/common';
 import type { Id } from '../types/common';
-import * as messService from '../services/mess.service';
+import * as messApiService from '../services/mess-api.service';
 import { formatDate } from '../types/common';
 
 interface MessManagementProps {
@@ -33,6 +33,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
     open: boolean;
     entry: MessEntry | null;
   }>({ open: false, entry: null });
+  const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState<{
     open: boolean;
     type: ToastType;
@@ -69,27 +70,40 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
 
   const [selectedDay, setSelectedDay] = useState<string>(getCurrentDayName());
   const [formData, setFormData] = useState<MessFormData>({
-    date: getDateForDay(getCurrentDayName()),
+    day: getCurrentDayName(),
     breakfast: { items: [{ id: `breakfast-${Date.now()}`, name: '', quantity: '', unit: '' }] },
     lunch: { items: [{ id: `lunch-${Date.now() + 1}`, name: '', quantity: '', unit: '' }] },
     dinner: { items: [{ id: `dinner-${Date.now() + 2}`, name: '', quantity: '', unit: '' }] },
+    price: '',
   });
 
-  // Update form date when day is selected
+  // Update form day when day is selected
   useEffect(() => {
-    const dateForDay = getDateForDay(selectedDay);
-    setFormData(prev => ({ ...prev, date: dateForDay }));
+    setFormData(prev => ({ ...prev, day: selectedDay }));
   }, [selectedDay]);
 
   useEffect(() => {
     loadMessEntries();
   }, [hostelId]);
 
-  const loadMessEntries = () => {
-    const entries = messService.getMessEntriesByHostel(hostelId);
-    // Sort by date descending (newest first)
-    entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setMessEntries(entries);
+  const loadMessEntries = async () => {
+    try {
+      setIsLoading(true);
+      const entries = await messApiService.getMessEntriesByHostelAPI(hostelId);
+      // Sort by day of week (Monday to Sunday)
+      const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      entries.sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day));
+      setMessEntries(entries);
+    } catch (error: any) {
+      console.error('Error loading mess entries:', error);
+      setToast({
+        open: true,
+        type: 'error',
+        message: 'Failed to load mess entries',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAddItem = useCallback((mealType: MealType) => {
@@ -164,7 +178,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
     onNotesChange: (notes: string) => handleNotesChange('dinner', notes),
   }), [handleAddItem, handleRemoveItem, handleItemChange, handleNotesChange]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validate that at least one item exists in each meal
@@ -188,9 +202,10 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
     }
 
     try {
+      setIsLoading(true);
       // Filter out empty items before submitting
       const cleanedData: MessFormData = {
-        date: formData.date,
+        day: formData.day,
         breakfast: {
           items: formData.breakfast.items.filter(
             (item) => item.name.trim() && item.quantity.trim()
@@ -209,17 +224,18 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
           ),
           notes: formData.dinner.notes,
         },
+        price: formData.price,
       };
 
       if (editingEntry) {
-        messService.updateMessEntry(editingEntry.id, cleanedData);
+        await messApiService.updateMessEntryAPI(editingEntry.id, cleanedData);
         setToast({
           open: true,
           type: 'success',
           message: 'Mess entry updated successfully!',
         });
       } else {
-        messService.createMessEntry(hostelId, cleanedData);
+        await messApiService.createMessEntryAPI(hostelId, cleanedData);
         setToast({
           open: true,
           type: 'success',
@@ -231,22 +247,23 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
       setIsAddModalOpen(false);
       setIsEditModalOpen(false);
       setEditingEntry(null);
-      loadMessEntries();
+      await loadMessEntries();
     } catch (error: any) {
       setToast({
         open: true,
         type: 'error',
         message: error.message || 'Failed to save mess entry. Please try again.',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleEdit = (entry: MessEntry) => {
     setEditingEntry(entry);
-    const dayName = getDayName(entry.date);
-    setSelectedDay(dayName);
+    setSelectedDay(entry.day);
     setFormData({
-      date: entry.date,
+      day: entry.day,
       breakfast: {
         items:
           entry.breakfast.items.length > 0
@@ -283,39 +300,44 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
             : [{ id: `dinner-${Date.now()}`, name: '', quantity: '', unit: '' }],
         notes: entry.dinner.notes,
       },
+      price: entry.price ? entry.price.toString() : '',
     });
     setIsEditModalOpen(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteConfirm.entry) return;
 
-    const success = messService.deleteMessEntry(deleteConfirm.entry.id);
-    if (success) {
+    try {
+      setIsLoading(true);
+      await messApiService.deleteMessEntryAPI(deleteConfirm.entry.id);
       setToast({
         open: true,
         type: 'success',
         message: 'Mess entry deleted successfully',
       });
-      loadMessEntries();
-    } else {
+      await loadMessEntries();
+    } catch (error: any) {
       setToast({
         open: true,
         type: 'error',
-        message: 'Failed to delete mess entry',
+        message: error.message || 'Failed to delete mess entry',
       });
+    } finally {
+      setIsLoading(false);
+      setDeleteConfirm({ open: false, entry: null });
     }
-    setDeleteConfirm({ open: false, entry: null });
   };
 
   const resetForm = () => {
     const now = Date.now();
     setSelectedDay('Monday');
     setFormData({
-      date: getDateForDay('Monday'),
+      day: 'Monday',
       breakfast: { items: [{ id: `breakfast-${now}`, name: '', quantity: '', unit: '' }] },
       lunch: { items: [{ id: `lunch-${now + 1}`, name: '', quantity: '', unit: '' }] },
       dinner: { items: [{ id: `dinner-${now + 2}`, name: '', quantity: '', unit: '' }] },
+      price: '',
     });
   };
 
@@ -496,10 +518,10 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-slate-900">
-                      {getDayName(entry.date)} - {formatDate(entry.date)}
+                      {entry.day}
                     </h3>
                     <p className="text-sm text-slate-500">
-                      Created: {formatDate(entry.createdAt)}
+                      {entry.price ? `Price: $${entry.price}` : 'Price not set'}
                     </p>
                   </div>
                 </div>
@@ -845,7 +867,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                   <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-white">
                     <div>
                       <h3 className="text-xl font-bold text-slate-900">
-                        {selectedDay} - {formData.date ? formatDate(formData.date) : ''}
+                        {selectedDay}
                       </h3>
                       <span className="block w-12 h-1 bg-pink-500 mt-1" />
                     </div>
@@ -884,6 +906,26 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                         mealData={formData.dinner}
                         {...dinnerCallbacks}
                       />
+
+                      {/* Price Field */}
+                      <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
+                        <label className="block text-sm font-semibold text-slate-900 mb-2">
+                          <CurrencyDollarIcon className="w-5 h-5 inline-block mr-2 text-green-600" />
+                          Total Price (Optional)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.price}
+                          onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                          placeholder="Enter total meal price"
+                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        />
+                        <p className="text-xs text-slate-600 mt-1">
+                          Optional: Set a total price for all meals on {selectedDay}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Footer Buttons */}
@@ -977,50 +1019,70 @@ const MealSectionComponent: React.FC<MealSectionProps> = React.memo(({
         </Button>
       </div>
 
-      <div className="space-y-2 mb-3">
+      <div className="space-y-3 mb-3">
         {mealData.items.map((item, index) => (
-          <div key={item.id || `item-${mealType}-${index}`} className="flex gap-2 items-start">
-            <input
-              type="text"
-              placeholder="Item name"
-              value={item.name}
-              onChange={(e) => onItemChange(index, 'name', e.target.value)}
-              className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="text"
-              placeholder="Quantity"
-              value={item.quantity}
-              onChange={(e) => onItemChange(index, 'quantity', e.target.value)}
-              className="w-24 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="text"
-              placeholder="Unit (kg, pcs)"
-              value={item.unit || ''}
-              onChange={(e) => onItemChange(index, 'unit', e.target.value)}
-              className="w-24 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {mealData.items.length > 1 && (
-              <button
-                type="button"
-                onClick={() => onRemoveItem(index)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-              >
-                <TrashIcon className="w-5 h-5" />
-              </button>
-            )}
+          <div key={item.id || `item-${mealType}-${index}`} className="bg-white rounded-lg p-3 border border-slate-200">
+            {/* Item Name Row */}
+            <div className="flex gap-2 items-start mb-2">
+              <input
+                type="text"
+                placeholder="Item name (e.g., Omelette, Rice, Bread)"
+                value={item.name}
+                onChange={(e) => onItemChange(index, 'name', e.target.value)}
+                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+              />
+              {mealData.items.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => onRemoveItem(index)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Remove item"
+                >
+                  <TrashIcon className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            {/* Quantity and Unit Row */}
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="text-xs text-slate-600 font-medium block mb-1">Quantity</label>
+                <input
+                  type="text"
+                  placeholder="Quantity"
+                  value={item.quantity}
+                  onChange={(e) => onItemChange(index, 'quantity', e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-slate-600 font-medium block mb-1">Unit</label>
+                <input
+                  type="text"
+                  placeholder="kg, pcs, ltr, tbsp, etc"
+                  value={item.unit || ''}
+                  onChange={(e) => onItemChange(index, 'unit', e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+            </div>
           </div>
         ))}
       </div>
 
-      <textarea
-        placeholder={`${mealLabel} notes (optional)`}
-        value={mealData.notes || ''}
-        onChange={(e) => onNotesChange(e.target.value)}
-        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        rows={2}
-      />
+      <div>
+        <label className="text-xs text-slate-600 font-medium block mb-1">{mealLabel} Notes (Optional)</label>
+        <textarea
+          placeholder={`Add ingredients or preparation notes for ${mealLabel.toLowerCase()}. Example: Salt 1 tsp, Pepper 1/4 tsp, Butter 2 tbsp`}
+          value={mealData.notes || ''}
+          onChange={(e) => onNotesChange(e.target.value)}
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          rows={3}
+        />
+        <p className="text-xs text-slate-500 mt-1">
+          💡 Tip: List ingredients and their quantities here (e.g., "Salt 1 tsp, Eggs 2, Butter 2 tbsp")
+        </p>
+      </div>
     </div>
   );
 });

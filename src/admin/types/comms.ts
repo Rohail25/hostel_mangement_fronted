@@ -45,7 +45,7 @@ export interface Vendor {
 export type AlertSeverity = 'info' | 'warn' | 'danger';
 
 /** Alert status */
-export type AlertStatus = 'open' | 'closed';
+export type AlertStatus = 'open' | 'closed' | 'pending' | 'in_progress' | 'resolved' | 'dismissed';
 
 /**
  * Alert entity
@@ -57,6 +57,7 @@ export interface Alert {
   severity: AlertSeverity;
   createdAt: string; // ISO date string
   status: AlertStatus;
+  rawStatus?: string; // Backend status value (pending, in_progress, resolved, dismissed)
   description?: string;
   assignedTo?: string;
   // Additional fields from API

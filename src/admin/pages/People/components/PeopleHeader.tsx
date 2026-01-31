@@ -78,12 +78,15 @@ export const PeopleHeader: React.FC<PeopleHeaderProps> = React.memo(({
       <div className="flex items-center gap-3 flex-wrap">
         {activeSection !== 'Prospects' && (
           <div className="w-full sm:w-80">
-            <Select
-              value={selectedHostelId}
-              onChange={onHostelChange}
-              options={hostelOptions}
-              disabled={hostelsLoading}
-            />
+            <div className="relative">
+              <Select
+                value={selectedHostelId}
+                onChange={onHostelChange}
+                options={hostelOptions}
+                disabled={hostelsLoading}
+              />
+              <div className="absolute inset-0 pointer-events-none rounded-lg border-2 border-blue-500 opacity-0 hover:opacity-100 transition-opacity"></div>
+            </div>
           </div>
         )}
         <Button

@@ -245,6 +245,44 @@ export async function createAlertAPI(data: CreateAlertRequest): Promise<CreateAl
 }
 
 /**
+ * Update an alert via API
+ * @param alertId - Alert ID
+ * @param data - Alert update data
+ * @returns Updated alert response
+ */
+export async function updateAlertAPI(alertId: number, data: Partial<CreateAlertRequest>): Promise<CreateAlertResponse> {
+  try {
+    const response = await api.put<CreateAlertResponse>(API_ROUTES.ALERT.UPDATE(alertId), data);
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Failed to update alert');
+    }
+    return response;
+  } catch (error: any) {
+    console.error('❌ [UPDATE ALERT] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update alert status via API
+ * @param alertId - Alert ID
+ * @param status - New status (pending, in_progress, resolved, dismissed)
+ * @returns Updated alert response
+ */
+export async function updateAlertStatusAPI(alertId: number, status: 'pending' | 'in_progress' | 'resolved' | 'dismissed'): Promise<CreateAlertResponse> {
+  try {
+    const response = await api.put<CreateAlertResponse>(API_ROUTES.ALERT.UPDATE_STATUS(alertId), { status });
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Failed to update alert status');
+    }
+    return response;
+  } catch (error: any) {
+    console.error('❌ [UPDATE ALERT STATUS] Error:', error);
+    throw error;
+  }
+}
+
+/**
  * Get rooms by hostel ID via API
  * @param hostelId - Hostel ID
  * @returns Array of rooms
@@ -329,11 +367,13 @@ export interface AlertApiResponse {
 export async function getAlertsAPI(params?: {
   type?: 'bill' | 'maintenance';
   hostelId?: number;
+  status?: 'open' | 'closed' | 'resolved' | 'pending';
 }): Promise<AlertApiResponse> {
   try {
     const queryParams = new URLSearchParams();
     if (params?.type) queryParams.append('type', params.type);
     if (params?.hostelId) queryParams.append('hostelId', params.hostelId.toString());
+    if (params?.status) queryParams.append('status', params.status);
 
     const url = `${API_ROUTES.ALERT.LIST}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     
@@ -435,6 +475,37 @@ export async function getAlertByIdAPI(alertId: number): Promise<AlertDetailApiRe
     return response as AlertDetailApiResponse;
   } catch (error: any) {
     console.error('❌ [GET ALERT BY ID] Error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get unassigned alerts from API
+ * @param params - Query parameters (page, limit, hostelId, type, status, priority)
+ * @returns Unassigned alerts response with pagination
+ */
+export async function getUnassignedAlertsAPI(params?: {
+  page?: number;
+  limit?: number;
+  hostelId?: number;
+  type?: string;
+  status?: string;
+  priority?: string;
+}): Promise<AlertListApiResponse> {
+  try {
+    console.log('🔐 [GET UNASSIGNED ALERTS] Calling endpoint: /admin/alerts/unassigned');
+
+    const response = await api.get<AlertListApiResponse>(API_ROUTES.ALERT.UNASSIGNED, { params });
+
+    console.log('✅ [GET UNASSIGNED ALERTS] Response received:', response);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.message || 'Failed to fetch unassigned alerts');
+    }
+
+    return response;
+  } catch (error: any) {
+    console.error('❌ [GET UNASSIGNED ALERTS] Error:', error);
     throw error;
   }
 }

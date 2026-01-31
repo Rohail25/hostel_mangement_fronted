@@ -24,7 +24,7 @@ export const AddHostelForm: React.FC<AddHostelFormProps> = ({
   onSubmit,
   editingHostel,
 }) => {
-  const [activeTab, setActiveTab] = useState<'hostelInfo' | 'hostelSettings'>('hostelInfo');
+  const [activeTab, setActiveTab] = useState<'hostelInfo' | 'hostelSettings' | 'arrangementManagement'>('hostelInfo');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -42,6 +42,9 @@ export const AddHostelForm: React.FC<AddHostelFormProps> = ({
     checkInTime: '',
     checkOutTime: '',
     mapLink: '',
+    totalFloors: '',
+    totalRooms: '',
+    totalBeds: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,6 +71,9 @@ export const AddHostelForm: React.FC<AddHostelFormProps> = ({
           checkInTime: '9:00AM', // Default or fetch from API
           checkOutTime: '6:00PM', // Default or fetch from API
           mapLink: editingHostel.mapLink || '',
+          totalFloors: editingHostel.totalFloors?.toString() || '',
+          totalRooms: editingHostel.totalRooms?.toString() || '',
+          totalBeds: editingHostel.totalBeds?.toString() || '',
         });
       } else {
         // Reset form for new hostel
@@ -87,6 +93,9 @@ export const AddHostelForm: React.FC<AddHostelFormProps> = ({
           checkInTime: '9:00AM',
           checkOutTime: '6:00PM',
           mapLink: '',
+          totalFloors: '',
+          totalRooms: '',
+          totalBeds: '',
   });
       }
       setActiveTab('hostelInfo');
@@ -94,13 +103,20 @@ export const AddHostelForm: React.FC<AddHostelFormProps> = ({
     }
   }, [isOpen, editingHostel]);
 
-  // Category options
+  // Category options (frontend labels differ from backend values)
   const categoryOptions = [
     { value: '', label: 'Select Category' },
-    { value: 'luxury', label: 'Luxury' },
+    { value: 'luxury', label: 'Hotel Botek' },
     { value: 'back_pack', label: 'Back Pack' },
-    { value: 'home2', label: 'Home2' },
+    { value: 'home2', label: 'Second Home' },
   ];
+
+  // Category comments mapping
+  const categoryComments: Record<string, string> = {
+    'home2': 'This is long stage like students, job person, back pack',
+    'luxury': 'This is 3-6 days',
+    'back_pack': 'This is for backpackers and short-term stays',
+  };
 
   // Type options
   const typeOptions = [
@@ -187,6 +203,9 @@ export const AddHostelForm: React.FC<AddHostelFormProps> = ({
         },
         hostelImage: formData.hostelImage,
         mapLink: formData.mapLink.trim(),
+        totalFloors: formData.totalFloors ? parseInt(formData.totalFloors) : 0,
+        totalRooms: formData.totalRooms ? parseInt(formData.totalRooms) : 0,
+        totalBeds: formData.totalBeds ? parseInt(formData.totalBeds) : 0,
       };
 
       await onSubmit(submitData);
@@ -217,6 +236,9 @@ export const AddHostelForm: React.FC<AddHostelFormProps> = ({
       checkInTime: '',
       checkOutTime: '',
       mapLink: '',
+      totalFloors: '',
+      totalRooms: '',
+      totalBeds: '',
     });
     setErrors({});
     setActiveTab('hostelInfo');
@@ -321,6 +343,17 @@ export const AddHostelForm: React.FC<AddHostelFormProps> = ({
                     <Cog6ToothIcon className="w-5 h-5" />
                     <span className="font-medium">Hostel Settings</span>
                   </button>
+                  <button
+                    onClick={() => setActiveTab('arrangementManagement')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                      activeTab === 'arrangementManagement'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <BuildingOfficeIcon className="w-5 h-5" />
+                    <span className="font-medium">Hostel Arrangements</span>
+                  </button>
                 </div>
               </div>
 
@@ -332,6 +365,7 @@ export const AddHostelForm: React.FC<AddHostelFormProps> = ({
                     <h3 className="text-xl font-bold text-slate-900">
                       {activeTab === 'hostelInfo' && 'HOSTEL INFO'}
                       {activeTab === 'hostelSettings' && 'HOSTEL SETTINGS'}
+                      {activeTab === 'arrangementManagement' && 'HOSTEL ARRANGEMENTS'}
                     </h3>
                     <span className="block w-12 h-1 bg-pink-500 mt-1" />
                   </div>
@@ -575,11 +609,16 @@ export const AddHostelForm: React.FC<AddHostelFormProps> = ({
                             value={formData.category}
                             onChange={(value) => setFormData({ ...formData, category: value })}
                             options={categoryOptions}
-            />
+                          />
                           {errors.category && (
                             <p className="mt-1 text-sm text-red-600">{errors.category}</p>
-            )}
-          </div>
+                          )}
+                          {formData.category && categoryComments[formData.category] && (
+                            <p className="mt-2 text-sm text-slate-600 italic bg-slate-50 p-3 rounded-lg border border-slate-200">
+                              {categoryComments[formData.category]}
+                            </p>
+                          )}
+                        </div>
 
                         {/* Type */}
                         <div>
@@ -634,6 +673,61 @@ export const AddHostelForm: React.FC<AddHostelFormProps> = ({
             )}
           </div>
         </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'arrangementManagement' && (
+                      <div className="space-y-6">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <p className="text-sm text-blue-800">
+                            <strong>Note:</strong> Specify the total capacity for your hostel. You can add detailed arrangements (specific blocks, rooms, and beds) after creating the hostel using the "Arrange" button.
+                          </p>
+                        </div>
+
+                        {/* Total Blocks */}
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Total Blocks
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.totalFloors}
+                            onChange={(e) => setFormData({ ...formData, totalFloors: e.target.value })}
+                            className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter total number of blocks/floors"
+                          />
+                        </div>
+
+                        {/* Total Rooms */}
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Total Rooms
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.totalRooms}
+                            onChange={(e) => setFormData({ ...formData, totalRooms: e.target.value })}
+                            className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter total number of rooms"
+                          />
+                        </div>
+
+                        {/* Total Seats */}
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Total Seats (Beds)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formData.totalBeds}
+                            onChange={(e) => setFormData({ ...formData, totalBeds: e.target.value })}
+                            className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter total number of seats/beds"
+                          />
                         </div>
                       </div>
                     )}

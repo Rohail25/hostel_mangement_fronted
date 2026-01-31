@@ -5,6 +5,12 @@
 import { api } from '../../services/apiClient';
 import { API_ROUTES } from '../../services/api.config';
 import type { ApiResponse } from '../../services/apiClient';
+import { FPA_MOCK_DATA } from '../mock/fpa.mock';
+
+// ===== FLAG TO TOGGLE BETWEEN MOCK AND REAL API =====
+// Set to TRUE to use mock data, FALSE to use real API
+const USE_MOCK_DATA = false; // Using real API - integrated with backend
+// ===== END FLAG =====
 
 /**
  * FP&A Summary Response Types
@@ -46,6 +52,10 @@ export interface FPASummaryResponse {
       annualRevPAU: number;
       monthlyRevPAU: number;
       contributionMarginRatio: number;
+      // New Metrics
+      monthlyBills: number;
+      monthlyRent: number;
+      totalPayable: number;
     };
     summary: {
       month: string;
@@ -184,6 +194,12 @@ export const getFPASummary = async (params?: {
   month?: number;
   hostelId?: number;
 }): Promise<FPASummaryResponse> => {
+  if (USE_MOCK_DATA) {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return FPA_MOCK_DATA.summary as FPASummaryResponse;
+  }
+
   const queryParams = new URLSearchParams();
   if (params?.year) queryParams.append('year', params.year.toString());
   if (params?.month) queryParams.append('month', params.month.toString());
@@ -201,6 +217,12 @@ export const getMonthlyComparison = async (params?: {
   year?: number;
   hostelId?: number;
 }): Promise<MonthlyComparisonResponse> => {
+  if (USE_MOCK_DATA) {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return FPA_MOCK_DATA.monthlyComparison as MonthlyComparisonResponse;
+  }
+
   const queryParams = new URLSearchParams();
   if (params?.year) queryParams.append('year', params.year.toString());
   if (params?.hostelId) queryParams.append('hostelId', params.hostelId.toString());
@@ -218,6 +240,12 @@ export const getCategoryBreakdown = async (params?: {
   month?: number;
   hostelId?: number;
 }): Promise<CategoryBreakdownResponse> => {
+  if (USE_MOCK_DATA) {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return FPA_MOCK_DATA.categoryBreakdown as CategoryBreakdownResponse;
+  }
+
   const queryParams = new URLSearchParams();
   if (params?.year) queryParams.append('year', params.year.toString());
   if (params?.month) queryParams.append('month', params.month.toString());
@@ -235,6 +263,12 @@ export const getCashFlow = async (params?: {
   year?: number;
   hostelId?: number;
 }): Promise<CashFlowResponse> => {
+  if (USE_MOCK_DATA) {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return FPA_MOCK_DATA.cashFlow as CashFlowResponse;
+  }
+
   const queryParams = new URLSearchParams();
   if (params?.year) queryParams.append('year', params.year.toString());
   if (params?.hostelId) queryParams.append('hostelId', params.hostelId.toString());
@@ -251,6 +285,12 @@ export const getFinancialRatios = async (params?: {
   year?: number;
   hostelId?: number;
 }): Promise<FinancialRatiosResponse> => {
+  if (USE_MOCK_DATA) {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return FPA_MOCK_DATA.ratios as FinancialRatiosResponse;
+  }
+
   const queryParams = new URLSearchParams();
   if (params?.year) queryParams.append('year', params.year.toString());
   if (params?.hostelId) queryParams.append('hostelId', params.hostelId.toString());

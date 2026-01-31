@@ -1,7 +1,7 @@
 /**
  * Auth Storage Utility
  * Manages authentication token and user data in localStorage
- */
+*/
 
 export interface UserData {
   id: number;

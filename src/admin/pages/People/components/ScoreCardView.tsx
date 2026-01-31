@@ -212,3 +212,7 @@ export default ScoreCardView;
 
 
 
+
+
+
+

@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { PlusIcon, CalendarIcon, Cog6ToothIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, CalendarIcon, Cog6ToothIcon, ArrowDownTrayIcon, PencilIcon, EllipsisVerticalIcon } from '@heroicons/react/24/outline';
 import jsPDF from 'jspdf';
 import { DataTable } from '../../components/DataTable';
 import type { Column } from '../../components/DataTable';
@@ -32,7 +32,8 @@ const AlertsList: React.FC = () => {
   const navigate = useNavigate();
   
   // Determine active section from route
-  const getActiveSection = (): 'bills' | 'maintenance' => {
+  const getActiveSection = (): 'bills' | 'maintenance' | 'bin' => {
+    if (location.pathname.includes('/alerts/bin')) return 'bin';
     if (location.pathname.includes('/alerts/maintenance')) return 'maintenance';
     if (location.pathname.includes('/alerts/bills')) return 'bills';
     // Default to bills if on /alerts
@@ -65,7 +66,10 @@ const AlertsList: React.FC = () => {
   });
   const [isAddAlertOpen, setIsAddAlertOpen] = useState(false);
   const [isViewAlertOpen, setIsViewAlertOpen] = useState(false);
+  const [isEditAlertOpen, setIsEditAlertOpen] = useState(false);
   const [selectedAlertId, setSelectedAlertId] = useState<number | null>(null);
+  const [editingAlert, setEditingAlert] = useState<Alert | null>(null);
+  const [statusMenuOpen, setStatusMenuOpen] = useState<number | null>(null);
   const [toast, setToast] = useState<{
     open: boolean;
     type: ToastType;
@@ -112,15 +116,72 @@ const AlertsList: React.FC = () => {
       setLoading(true);
       setError(null);
 
+      // For Alert Bin, load resolved/closed alerts
+      if (activeSection === 'bin') {
+        const response = await alertService.getAlertsAPI({
+          status: 'resolved',
+        });
+        
+        // Filter alerts older than 30 days (frontend only)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const mappedAlerts: Alert[] = response.data.alerts
+          .filter((alert: any) => {
+            const alertDate = new Date(alert.createdAt || alert.created);
+            return alertDate >= thirtyDaysAgo;
+          })
+          .map((alert: any) => {
+            const severityMap: Record<string, 'info' | 'warn' | 'danger'> = {
+              'INFO': 'info',
+              'WARN': 'warn',
+              'WARNING': 'warn',
+              'DANGER': 'danger',
+              'info': 'info',
+              'warn': 'warn',
+              'danger': 'danger',
+            };
+            const severity = severityMap[alert.severity.toUpperCase()] || 'info';
+
+            // Use rawStatus if available, otherwise use status
+            const rawStatus = alert.rawStatus || alert.status || 'resolved';
+            const statusValue = rawStatus.toLowerCase() as 'pending' | 'in_progress' | 'resolved' | 'dismissed';
+
+            return {
+              id: alert.id,
+              title: alert.title,
+              severity,
+              createdAt: alert.createdAt || alert.created,
+              status: statusValue,
+              rawStatus: rawStatus, // Store raw status for filtering
+              description: alert.description || undefined,
+              assignedTo: alert.assignedTo || undefined,
+              type: alert.type,
+              priority: alert.priority,
+              hostel: alert.hostel,
+              room: alert.room,
+              tenant: alert.tenant,
+              amount: alert.amount,
+              dueDate: alert.dueDate,
+            };
+          });
+        
+        setAlerts(mappedAlerts);
+        return;
+      }
+
       // Determine type based on active section
       const type = activeSection === 'bills' ? 'bill' : 'maintenance';
       
-      // Build filter params
+      // Build filter params - exclude resolved/dismissed alerts from Bills and Maintenance
+      // They should only appear in Alert Bin
       const params: {
         type: 'bill' | 'maintenance';
         hostelId?: number;
+        status?: string;
       } = {
         type,
+        // Don't pass status filter - we'll filter on frontend to exclude resolved/dismissed
       };
 
       // Add hostel filter if selected
@@ -130,38 +191,51 @@ const AlertsList: React.FC = () => {
 
       const response = await alertService.getAlertsAPI(params);
       
-      // Map API response to Alert type
-      const mappedAlerts: Alert[] = response.data.alerts.map((alert) => {
-        // Map severity: API returns "WARN", "INFO", "DANGER" but we need lowercase
-        const severityMap: Record<string, 'info' | 'warn' | 'danger'> = {
-          'INFO': 'info',
-          'WARN': 'warn',
-          'WARNING': 'warn',
-          'DANGER': 'danger',
-          'info': 'info',
-          'warn': 'warn',
-          'danger': 'danger',
-        };
-        const severity = severityMap[alert.severity.toUpperCase()] || 'info';
+      // Map API response to Alert type and filter out resolved/dismissed alerts
+      const mappedAlerts: Alert[] = response.data.alerts
+        .filter((alert: any) => {
+          // Filter out resolved and dismissed alerts from Bills and Maintenance sections
+          // They should only appear in Alert Bin
+          const rawStatus = alert.rawStatus || alert.status || 'pending';
+          const statusLower = rawStatus.toLowerCase();
+          return statusLower !== 'resolved' && statusLower !== 'dismissed';
+        })
+        .map((alert: any) => {
+          // Map severity: API returns "WARN", "INFO", "DANGER" but we need lowercase
+          const severityMap: Record<string, 'info' | 'warn' | 'danger'> = {
+            'INFO': 'info',
+            'WARN': 'warn',
+            'WARNING': 'warn',
+            'DANGER': 'danger',
+            'info': 'info',
+            'warn': 'warn',
+            'danger': 'danger',
+          };
+          const severity = severityMap[alert.severity?.toUpperCase()] || 'info';
 
-        return {
-          id: alert.id,
-          title: alert.title,
-          severity,
-          createdAt: alert.createdAt,
-          status: alert.status.toLowerCase() as 'open' | 'closed',
-          description: alert.description || undefined,
-          assignedTo: alert.assignedTo || undefined,
-          // Additional fields from API
-          type: alert.type,
-          priority: alert.priority,
-          hostel: alert.hostel,
-          room: alert.room,
-          tenant: alert.tenant,
-          amount: alert.amount,
-          dueDate: alert.dueDate,
-        };
-      });
+          // Use rawStatus if available, otherwise use status
+          const rawStatus = alert.rawStatus || alert.status || 'pending';
+          const statusValue = rawStatus.toLowerCase() as 'pending' | 'in_progress' | 'resolved' | 'dismissed';
+
+          return {
+            id: alert.id,
+            title: alert.title,
+            severity,
+            createdAt: alert.createdAt || alert.created,
+            status: statusValue,
+            rawStatus: rawStatus, // Store raw status for filtering
+            description: alert.description || undefined,
+            assignedTo: alert.assignedTo || undefined,
+            // Additional fields from API
+            type: alert.type,
+            priority: alert.priority,
+            hostel: alert.hostel,
+            room: alert.room,
+            tenant: alert.tenant,
+            amount: alert.amount,
+            dueDate: alert.dueDate,
+          };
+        });
 
       setAlerts(mappedAlerts);
     } catch (err: any) {
@@ -186,14 +260,26 @@ const AlertsList: React.FC = () => {
   const filteredData = useMemo(() => {
     let data = alerts;
 
+    // For Bills and Maintenance sections, exclude resolved/dismissed alerts
+    // They should only appear in Alert Bin
+    if (activeSection === 'bills' || activeSection === 'maintenance') {
+      data = data.filter((a: any) => {
+        const alertStatus = (a.rawStatus || a.status || '').toLowerCase();
+        return alertStatus !== 'resolved' && alertStatus !== 'dismissed';
+      });
+    }
+
     // Filter by severity
     if (severityFilter) {
       data = data.filter((a) => a.severity === severityFilter);
     }
 
-    // Filter by status
+    // Filter by status (use rawStatus if available, otherwise status)
     if (statusFilter) {
-      data = data.filter((a) => a.status === statusFilter);
+      data = data.filter((a: any) => {
+        const alertStatus = a.rawStatus || a.status;
+        return alertStatus === statusFilter;
+      });
     }
 
     // Date range filter
@@ -208,7 +294,7 @@ const AlertsList: React.FC = () => {
     }
 
     return data;
-  }, [alerts, severityFilter, statusFilter, dateFrom, dateTo]);
+  }, [alerts, activeSection, severityFilter, statusFilter, dateFrom, dateTo]);
 
   // Calculate stats for current section
   const currentSectionData = filteredData;
@@ -358,6 +444,96 @@ const AlertsList: React.FC = () => {
     setIsViewAlertOpen(true);
   };
 
+  // Handle edit alert
+  const handleEditAlert = (alert: Alert) => {
+    setEditingAlert(alert);
+    setIsEditAlertOpen(true);
+  };
+
+  // Handle update alert
+  const handleUpdateAlert = async (formData: AlertFormData) => {
+    if (!editingAlert) return;
+    
+    try {
+      const requestData: any = {
+        type: formData.type,
+        title: formData.title,
+        priority: formData.priority,
+        description: formData.description || '',
+        hostelId: Number(formData.hostelId),
+        roomId: Number(formData.roomId),
+        dueDate: formData.dueDate,
+        tenantId: formData.tenantId ? Number(formData.tenantId) : undefined,
+        amount: formData.amount ? Number(formData.amount) : undefined,
+        assignedTo: formData.assignedTo ? Number(formData.assignedTo) : undefined,
+        remarks: formData.remarks || undefined,
+      };
+
+      const response = await alertService.updateAlertAPI(Number(editingAlert.id), requestData);
+
+      if (response.success) {
+        setToast({
+          open: true,
+          type: 'success',
+          message: 'Alert updated successfully!',
+        });
+        setIsEditAlertOpen(false);
+        setEditingAlert(null);
+        await loadAlerts();
+      }
+    } catch (error: any) {
+      setToast({
+        open: true,
+        type: 'error',
+        message: error?.message || 'Failed to update alert. Please try again.',
+      });
+      throw error;
+    }
+  };
+
+  // Handle status update
+  const handleStatusUpdate = async (alertId: number, newStatus: 'pending' | 'in_progress' | 'resolved' | 'dismissed') => {
+    try {
+      const response = await alertService.updateAlertStatusAPI(alertId, newStatus);
+      if (response.success) {
+        setToast({
+          open: true,
+          type: 'success',
+          message: 'Alert status updated successfully!',
+        });
+        setStatusMenuOpen(null);
+        await loadAlerts();
+      }
+    } catch (error: any) {
+      setToast({
+        open: true,
+        type: 'error',
+        message: error?.message || 'Failed to update alert status. Please try again.',
+      });
+    }
+  };
+
+  // Handle restore alert from bin
+  const handleRestoreAlert = async (alertId: number) => {
+    try {
+      const response = await alertService.updateAlertStatusAPI(alertId, 'pending');
+      if (response.success) {
+        setToast({
+          open: true,
+          type: 'success',
+          message: 'Alert restored successfully!',
+        });
+        await loadAlerts();
+      }
+    } catch (error: any) {
+      setToast({
+        open: true,
+        type: 'error',
+        message: error?.message || 'Failed to restore alert. Please try again.',
+      });
+    }
+  };
+
   // Toolbar
   const toolbar = (
     <div className="flex flex-col sm:flex-row gap-4">
@@ -379,8 +555,10 @@ const AlertsList: React.FC = () => {
           onChange={setStatusFilter}
           options={[
             { value: '', label: 'All Statuses' },
-            { value: 'open', label: 'Open' },
-            { value: 'closed', label: 'Closed' },
+            { value: 'pending', label: 'Pending' },
+            { value: 'in_progress', label: 'In Progress' },
+            { value: 'resolved', label: 'Resolved' },
+            { value: 'dismissed', label: 'Dismissed' },
           ]}
         />
       </div>
@@ -388,23 +566,105 @@ const AlertsList: React.FC = () => {
   );
 
   // Actions renderer
-  const actionsRender = (alert: Alert) => (
-    <div className="flex items-center gap-2">
-      <motion.button
-        onClick={(e) => {
-          e.stopPropagation();
-          handleViewAlert(Number(alert.id));
-        }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-sm hover:shadow-md hover:from-blue-600 hover:to-blue-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-        title="View Alert Details"
-      >
-        <EyeIcon className="w-4 h-4" />
-        <span>View</span>
-      </motion.button>
-    </div>
-  );
+  const actionsRender = (alert: Alert) => {
+    // For Alert Bin, show Store button instead of Edit
+    if (activeSection === 'bin') {
+      return (
+        <div className="flex items-center gap-2">
+          <motion.button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRestoreAlert(Number(alert.id));
+            }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-sm hover:shadow-md hover:from-blue-600 hover:to-blue-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+            title="Restore Alert"
+          >
+            <span>Store</span>
+          </motion.button>
+        </div>
+      );
+    }
+    
+    // For other sections, show Edit and Status menu
+    return (
+      <div className="flex items-center gap-2">
+        <motion.button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleEditAlert(alert);
+          }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-sm hover:shadow-md hover:from-green-600 hover:to-green-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
+          title="Edit Alert"
+        >
+          <PencilIcon className="w-4 h-4" />
+          <span>Edit</span>
+        </motion.button>
+        
+        {/* Three dots menu for status update */}
+        <div className="relative">
+          <motion.button
+            onClick={(e) => {
+              e.stopPropagation();
+              setStatusMenuOpen(statusMenuOpen === Number(alert.id) ? null : Number(alert.id));
+            }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="inline-flex items-center justify-center w-8 h-8 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            title="Update Status"
+          >
+            <EllipsisVerticalIcon className="w-5 h-5" />
+          </motion.button>
+          
+          {statusMenuOpen === Number(alert.id) && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50">
+              <div className="py-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStatusUpdate(Number(alert.id), 'pending');
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                >
+                  Mark as Pending
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStatusUpdate(Number(alert.id), 'in_progress');
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                >
+                  Mark as In Progress
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStatusUpdate(Number(alert.id), 'resolved');
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                >
+                  Mark as Resolved
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStatusUpdate(Number(alert.id), 'dismissed');
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                >
+                  Mark as Dismissed
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -435,13 +695,15 @@ const AlertsList: React.FC = () => {
           >
             Export PDF
           </Button>
-          <Button
-            variant="primary"
-            onClick={() => setIsAddAlertOpen(true)}
-            icon={PlusIcon}
-          >
-            Add Alert
-          </Button>
+          {activeSection !== 'bin' && (
+            <Button
+              variant="primary"
+              onClick={() => setIsAddAlertOpen(true)}
+              icon={PlusIcon}
+            >
+              Add Alert
+            </Button>
+          )}
         </div>
       </div>
 
@@ -610,7 +872,7 @@ const AlertsList: React.FC = () => {
             data={filteredData}
             toolbar={toolbar}
             actionsRender={actionsRender}
-            emptyMessage={`No ${activeSection} alerts found.`}
+            emptyMessage={activeSection === 'bin' ? 'No alerts in bin. Alerts older than 30 days are automatically removed.' : `No ${activeSection} alerts found.`}
           />
         </motion.div>
       )}
@@ -621,6 +883,19 @@ const AlertsList: React.FC = () => {
         onClose={() => setIsAddAlertOpen(false)}
         onSubmit={handleAddAlert}
       />
+
+      {/* Edit Alert Modal */}
+      {editingAlert && (
+        <AddAlertModal
+          isOpen={isEditAlertOpen}
+          onClose={() => {
+            setIsEditAlertOpen(false);
+            setEditingAlert(null);
+          }}
+          onSubmit={handleUpdateAlert}
+          editingAlert={editingAlert}
+        />
+      )}
 
       {/* View Alert Modal */}
       <ViewAlertModal

@@ -148,24 +148,11 @@ const VendorTable: React.FC<VendorTableProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onView(row.id)}
-            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            title="View"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors font-medium text-sm"
+            title="View Details"
           >
-            <EyeIcon className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => onEdit(row.id)}
-            className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-            title="Edit"
-          >
-            <PencilIcon className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => onDelete(row.id, row.name || 'Vendor')}
-            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete"
-          >
-            <TrashIcon className="w-5 h-5" />
+            <EyeIcon className="w-4 h-4" />
+            View
           </button>
         </div>
       ),

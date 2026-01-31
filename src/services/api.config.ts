@@ -4,7 +4,8 @@
  */
 
 // Base API URL - Change this to your backend URL
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://hostel-mgt-backend.hmstech.org/api';
+// export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://hostel-mgt-backend.hmstech.org/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
 // Log the API base URL on module load for debugging
 console.log('🌐 API Base URL:', API_BASE_URL);
@@ -49,13 +50,13 @@ export const API_ROUTES = {
 
   // Tenant Routes
   TENANT: {
-    LIST: '/tenants',
+    LIST: '/admin/tenants',
     CREATE: '/admin/tenant',
-    BY_ID: (id: string | number) => `/tenants/${id}`,
-    UPDATE: (id: string | number) => `/tenants/${id}`,
-    DELETE: (id: string | number) => `/tenants/${id}`,
-    SEARCH: '/tenants/search',
-    BY_HOSTEL: (hostelId: string | number) => `/tenants/hostel/${hostelId}`,
+    BY_ID: (id: string | number) => `/admin/tenant/${id}`,
+    UPDATE: (id: string | number) => `/admin/tenant/${id}`,
+    DELETE: (id: string | number) => `/admin/tenant/${id}`,
+    SEARCH: '/admin/tenants/search',
+    BY_HOSTEL: (hostelId: string | number) => `/admin/tenants/hostel/${hostelId}`,
   },
 
   // Floor/Block Routes (UI shows "Block", backend uses "Floor")
@@ -86,6 +87,17 @@ export const API_ROUTES = {
     FLOORS: '/floors',
     ROOMS_BY_FLOOR: (floorId: string | number) => `/room/floor/${floorId}`,
     BEDS_BY_ROOM: (roomId: string | number) => `/beds/room/${roomId}`,
+    UPDATE_BED: (bedId: string | number) => `/admin/allocation/bed/${bedId}`,
+  },
+
+  // Bed Routes
+  BED: {
+    CREATE: '/admin/bed',
+    LIST: '/admin/beds',
+    BY_ID: (id: string | number) => `/admin/bed/${id}`,
+    UPDATE: (id: string | number) => `/admin/bed/${id}`,
+    DELETE: (id: string | number) => `/admin/bed/${id}`,
+    BEDS_BY_ROOM: (roomId: string | number) => `/admin/beds/room/${roomId}`,
   },
 
   // Employee Routes
@@ -108,6 +120,23 @@ export const API_ROUTES = {
     DELETE: (id: string | number) => `/transactions/${id}`,
     SUMMARY: '/transactions/summary',
     BY_HOSTEL: (hostelId: string | number) => `/transactions/hostel/${hostelId}`,
+    // Payables and Receivables
+    PAYABLES: '/admin/accounts/payables',
+    PAYABLE_BILLS: '/admin/accounts/payable/bills',
+    PAYABLE_VENDOR: '/admin/accounts/payable/vendor',
+    PAYABLE_LAUNDRY: '/admin/accounts/payable/laundry',
+    RECEIVABLES: '/admin/accounts/receivables',
+    RECEIVABLE_RECEIVED: '/admin/accounts/receivable/received',
+  },
+
+  // Expense/Bill Routes
+  EXPENSE: {
+    LIST: '/admin/expenses',
+    CREATE: '/admin/expenses',
+    BY_ID: (id: string | number) => `/admin/expenses/${id}`,
+    UPDATE: (id: string | number) => `/admin/expenses/${id}`,
+    DELETE: (id: string | number) => `/admin/expenses/${id}`,
+    UPDATE_STATUS: (id: string | number) => `/admin/expenses/${id}/status`,
   },
 
   // Vendor Routes
@@ -121,14 +150,26 @@ export const API_ROUTES = {
     SEARCH: '/admin/vendors/search',
   },
 
+  // Vendor Category Routes
+  VENDOR_CATEGORY: {
+    LIST: '/admin/vendor-categories',
+    CREATE: '/admin/vendor-categories',
+    BY_ID: (id: string | number) => `/admin/vendor-categories/${id}`,
+    UPDATE: (id: string | number) => `/admin/vendor-categories/${id}`,
+    DELETE: (id: string | number) => `/admin/vendor-categories/${id}`,
+  },
+
   // Alert Routes
   ALERT: {
     LIST: '/admin/alerts',
     CREATE: '/admin/alerts',
     BY_ID: (id: string | number) => `/admin/alerts/${id}`,
-    UPDATE: (id: string | number) => `/alerts/${id}`,
-    DELETE: (id: string | number) => `/alerts/${id}`,
-    MARK_READ: (id: string | number) => `/alerts/${id}/read`,
+    UPDATE: (id: string | number) => `/admin/alerts/${id}`,
+    UPDATE_STATUS: (id: string | number) => `/admin/alerts/${id}/status`,
+    DELETE: (id: string | number) => `/admin/alerts/${id}`,
+    MARK_READ: (id: string | number) => `/admin/alerts/${id}/read`,
+    UNASSIGNED: '/admin/alerts/unassigned',
+    STATS: '/admin/alerts/stats',
   },
 
   // Communication Routes

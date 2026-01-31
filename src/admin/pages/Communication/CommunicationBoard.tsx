@@ -20,7 +20,9 @@ import {
   DocumentTextIcon,
   MapPinIcon,
   XMarkIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  PencilIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import jsPDF from 'jspdf';
 import { Button } from '../../components/Button';
@@ -28,6 +30,12 @@ import { Modal } from '../../components/Modal';
 import ROUTES from '../../routes/routePaths';
 import { Badge } from '../../components/Badge';
 import { Select } from '../../components/Select';
+import TenantTable from '../People/components/TenantTable';
+import EmployeeTable from '../People/components/EmployeeTable';
+import VendorTable from '../People/components/VendorTable';
+import TenantForm from '../People/components/TenantForm';
+import EmployeeForm from '../People/components/EmployeeForm';
+import VendorForm from '../People/components/VendorForm';
 import type { Tenant } from '../../types/people';
 import type { Employee } from '../../types/people';
 import type { Vendor } from '../../types/comms';
@@ -38,7 +46,8 @@ import accountsData from '../../mock/accounts.json';
 import * as hostelService from '../../services/hostel.service';
 import * as tenantService from '../../services/tenant.service';
 import * as employeeService from '../../services/employee.service';
-import { API_BASE_URL } from '../../../services/api.config';
+import { api } from '../../../services/apiClient';
+import { API_BASE_URL, API_ROUTES } from '../../../services/api.config';
 import { formatDate, formatCurrency } from '../../types/common';
 
 type ActiveTab = 'Tenants' | 'Employees' | 'Vendors';
@@ -90,6 +99,40 @@ const CommunicationBoard: React.FC = () => {
     data: null,
   });
 
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [roles, setRoles] = useState<any[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+
+  // State to control viewing via form
+  const [isViewFormOpen, setIsViewFormOpen] = useState(false);
+  const [viewFormData, setViewFormData] = useState<any>(null);
+  const [viewFormType, setViewFormType] = useState<'Tenant' | 'Employee' | 'Vendor'>('Tenant');
+  const [viewingId, setViewingId] = useState<number | null>(null);
+
+  // Fetch roles for EmployeeForm
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        setRolesLoading(true);
+        const rolesData = await employeeService.getRoles();
+        setRoles(rolesData);
+      } catch (error) {
+        console.error('Error fetching roles:', error);
+      } finally {
+        setRolesLoading(false);
+      }
+    };
+    fetchRoles();
+  }, []);
+
+  const roleOptions = useMemo(() => {
+    return roles.map(role => ({
+      value: String(role.id),
+      label: role.name
+    }));
+  }, [roles]);
+
   // Fetch hostels from API on component mount
   useEffect(() => {
     const fetchHostels = async () => {
@@ -108,92 +151,91 @@ const CommunicationBoard: React.FC = () => {
     fetchHostels();
   }, []);
 
+  // Fetch vendors from API or mock
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState<boolean>(false);
+
   // Fetch tenants from API
   useEffect(() => {
     const fetchTenants = async () => {
-      if (activeTab === 'Tenants') {
-        try {
-          setTenantsLoading(true);
-          if (hostelFilter) {
-            // Fetch tenants by hostel
-            const tenantsData = await tenantService.getTenantsByHostel(Number(hostelFilter));
-            setTenants(tenantsData);
-          } else {
-            // Fetch all tenants
-            const tenantsData = await tenantService.getAllTenants();
-            setTenants(tenantsData);
-          }
-        } catch (error) {
-          console.error('Error fetching tenants:', error);
-          setTenants([]);
-        } finally {
-          setTenantsLoading(false);
+      try {
+        setTenantsLoading(true);
+        if (hostelFilter) {
+          const data = await tenantService.getTenantsByHostel(Number(hostelFilter));
+          setTenants(data);
+        } else {
+          const data = await tenantService.getAllTenants();
+          setTenants(data);
         }
+      } catch (error) {
+        console.error('Error fetching tenants:', error);
+        setTenants([]);
+      } finally {
+        setTenantsLoading(false);
       }
     };
 
     fetchTenants();
-  }, [activeTab, hostelFilter]);
+  }, [hostelFilter]);
 
   // Fetch employees from API
   useEffect(() => {
     const fetchEmployees = async () => {
-      if (activeTab === 'Employees') {
-        try {
-          setEmployeesLoading(true);
-          if (hostelFilter) {
-            // Fetch employees by hostel using the API endpoint
-            const employeesData = await employeeService.getEmployeesByHostel(Number(hostelFilter));
-            setEmployees(employeesData);
-          } else {
-            // Fetch all employees
-            const employeesData = await employeeService.getAllEmployees();
-            setEmployees(employeesData);
-          }
-        } catch (error) {
-          console.error('Error fetching employees:', error);
-          setEmployees([]);
-        } finally {
-          setEmployeesLoading(false);
+      try {
+        setEmployeesLoading(true);
+        if (hostelFilter) {
+          const data = await employeeService.getEmployeesByHostel(Number(hostelFilter));
+          setEmployees(data);
+        } else {
+          const data = await employeeService.getAllEmployees();
+          setEmployees(data);
         }
+      } catch (error) {
+        console.error('Error fetching employees:', error);
+        setEmployees([]);
+      } finally {
+        setEmployeesLoading(false);
       }
     };
 
     fetchEmployees();
-  }, [activeTab, hostelFilter]);
-
-  // Filter data based on hostel (for API data)
-  const filteredTenants = useMemo(() => {
-    if (activeTab === 'Tenants') {
-      return tenants;
-    }
-    // Fallback to mock data for other tabs
-    let data = tenantsData as Tenant[];
-    if (hostelFilter) {
-      data = data.filter((t) => String(t.hostelId) === hostelFilter);
-    }
-    return data;
-  }, [tenants, activeTab, hostelFilter]);
-
-  const filteredEmployees = useMemo(() => {
-    if (activeTab === 'Employees') {
-      return employees;
-    }
-    // Fallback to mock data for other tabs
-    let data = employeesData as Employee[];
-    if (hostelFilter) {
-      data = data.filter((e) => String(e.hostelId) === hostelFilter);
-    }
-    return data;
-  }, [employees, activeTab, hostelFilter]);
-
-  const filteredVendors = useMemo(() => {
-    let data = vendorsData as Vendor[];
-    if (hostelFilter) {
-      data = data.filter((v) => String(v.hostelId) === hostelFilter);
-    }
-    return data;
   }, [hostelFilter]);
+
+  // Fetch vendors from API
+  useEffect(() => {
+    const fetchVendors = async () => {
+      try {
+        setVendorsLoading(true);
+        if (hostelFilter) {
+          const response = await api.get(API_ROUTES.VENDOR.BY_HOSTEL(Number(hostelFilter)));
+          if (response.success && response.data) {
+            const vendorList = Array.isArray(response.data) ? response.data : response.data.data || [];
+            setVendors(vendorList);
+          } else {
+            setVendors([]);
+          }
+        } else {
+          const response = await api.get(API_ROUTES.VENDOR.LIST);
+          if (response.success && response.data) {
+            const vendorList = Array.isArray(response.data) ? response.data : response.data.data || [];
+            setVendors(vendorList);
+          } else {
+            setVendors([]);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching vendors:', error);
+        setVendors([]);
+      } finally {
+        setVendorsLoading(false);
+      }
+    };
+    fetchVendors();
+  }, [hostelFilter]);
+
+  const filteredTenants = tenants;
+  const filteredEmployees = employees;
+  const filteredVendors = vendors;
 
   // Prepare hostel options for dropdown
   const hostelOptions = useMemo(() => {
@@ -316,50 +358,63 @@ const CommunicationBoard: React.FC = () => {
   };
 
   const handleView = async (type: 'Tenant' | 'Employee' | 'Vendor', data: any) => {
+    setViewingId(data.id);
+    setViewFormType(type);
+    
     if (type === 'Tenant') {
       // Fetch full tenant details from API
       try {
         setTenantsLoading(true);
         const tenantData = await tenantService.getTenantById(data.id);
         if (tenantData) {
-          // Map API response to display format
+          // Map API response to display format for TenantForm
           const mappedData = {
-            id: tenantData.id,
-            name: tenantData.name,
-            firstName: tenantData.firstName,
-            lastName: tenantData.lastName,
-            email: tenantData.email,
-            phone: tenantData.phone,
-            alternatePhone: tenantData.alternatePhone,
-            gender: tenantData.gender,
-            dateOfBirth: tenantData.dateOfBirth,
-            status: tenantData.status,
-            profilePhoto: tenantData.profilePhoto,
-            monthlyRent: tenantData.monthlyRent,
-            securityDeposit: tenantData.securityDeposit,
-            leaseStartDate: tenantData.leaseStartDate,
-            leaseEndDate: tenantData.leaseEndDate,
-            notes: tenantData.notes,
-            rating: tenantData.rating,
-            documents: tenantData.documents,
-            room: tenantData.activeAllocation?.room?.number || 'N/A',
-            bed: tenantData.activeAllocation?.bed?.number || 'N/A',
-            floor: tenantData.activeAllocation?.floor?.name || 'N/A',
-            hostel: tenantData.activeAllocation?.hostel?.name || 'N/A',
-            leaseStart: tenantData.leaseStartDate,
-            leaseEnd: tenantData.leaseEndDate,
-            activeAllocation: tenantData.activeAllocation,
-            allocations: tenantData.allocations,
+            fullName: tenantData.name || `${tenantData.firstName} ${tenantData.lastName}`,
+            fatherName: tenantData.fatherName || '',
+            email: tenantData.email || '',
+            phone: tenantData.phone || '',
+            whatsappNumber: tenantData.whatsappNumber || '',
+            gender: tenantData.gender || '',
+            dateOfBirth: tenantData.dateOfBirth || '',
+            cnicNumber: tenantData.cnicNumber || '',
+            professionType: tenantData.professionType || '',
+            academicName: tenantData.academicName || '',
+            academicAddress: tenantData.academicAddress || '',
+            academicLocation: tenantData.academicLocation || '',
+            studentCardNo: tenantData.studentCardNo || '',
+            jobTitle: tenantData.jobTitle || '',
+            companyName: tenantData.companyName || '',
+            jobAddress: tenantData.jobAddress || '',
+            jobLocation: tenantData.jobLocation || '',
+            jobIdNo: tenantData.jobIdNo || '',
+            businessName: tenantData.businessName || '',
+            businessAddress: tenantData.businessAddress || '',
+            businessLocation: tenantData.businessLocation || '',
+            professionDescription: tenantData.professionDescription || '',
+            emergencyContactName: tenantData.emergencyContactName || '',
+            emergencyContactNumber: tenantData.emergencyContactNumber || '',
+            emergencyContactWhatsapp: tenantData.emergencyContactWhatsapp || '',
+            emergencyContactRelation: tenantData.emergencyContactRelation || '',
+            anyDisease: tenantData.anyDisease || '',
+            bloodGroup: tenantData.bloodGroup || '',
+            nearestRelativeContact: tenantData.nearestRelativeContact || '',
+            nearestRelativeWhatsapp: tenantData.nearestRelativeWhatsapp || '',
+            nearestRelativeRelation: tenantData.nearestRelativeRelation || '',
+            hostelId: String(tenantData.activeAllocation?.hostelId || ''),
+            floorId: String(tenantData.activeAllocation?.floorId || ''),
+            roomId: String(tenantData.activeAllocation?.roomId || ''),
+            bedId: String(tenantData.activeAllocation?.bedId || ''),
+            leaseStartDate: tenantData.leaseStartDate || '',
+            leaseEndDate: tenantData.leaseEndDate || '',
+            monthlyRent: String(tenantData.monthlyRent || ''),
+            securityDeposit: String(tenantData.securityDeposit || ''),
+            previousProfilePhoto: tenantData.profilePhoto,
           };
-          setViewModal({ isOpen: true, type, data: mappedData });
-        } else {
-          // Fallback to provided data if API fails
-          setViewModal({ isOpen: true, type, data });
+          setViewFormData(mappedData);
+          setIsViewFormOpen(true);
         }
       } catch (error) {
         console.error('Error fetching tenant details:', error);
-        // Fallback to provided data if API fails
-        setViewModal({ isOpen: true, type, data });
       } finally {
         setTenantsLoading(false);
       }
@@ -369,53 +424,109 @@ const CommunicationBoard: React.FC = () => {
         setEmployeesLoading(true);
         const employeeData = await employeeService.getEmployeeById(data.id);
         if (employeeData) {
-          // Map API response to display format
+          // Map API response to display format for EmployeeForm
           const mappedData = {
-            id: employeeData.id,
             name: employeeData.user?.username || employeeData.user?.email || 'Unknown',
             email: employeeData.user?.email || '',
             phone: employeeData.user?.phone || '',
-            role: employeeData.role || '',
-            department: employeeData.department,
-            designation: employeeData.designation,
-            status: employeeData.status || 'active',
-            profilePhoto: employeeData.profilePhoto,
-            joinDate: employeeData.joinDate,
-            terminationDate: employeeData.terminationDate,
-            salary: employeeData.salary,
-            salaryType: employeeData.salaryType,
-            workingHours: employeeData.workingHours,
-            employeeCode: employeeData.employeeCode,
-            address: employeeData.address,
-            documents: employeeData.documents || [],
-            emergencyContact: employeeData.emergencyContact,
-            qualifications: employeeData.qualifications,
-            notes: employeeData.notes,
-            bankDetails: employeeData.bankDetails,
-            hostel: employeeData.hostel?.name || 'N/A',
-            hostelId: employeeData.hostelId,
-            user: employeeData.user,
+            whatsappNumber: employeeData.whatsappNumber || '',
+            address: employeeData.address || { street: '', city: '', country: '' },
+            roleId: String(employeeData.roleId || ''),
+            hostelId: String(employeeData.hostelId || ''),
+            joinDate: employeeData.joinDate || '',
+            salary: String(employeeData.salary || ''),
+            salaryType: employeeData.salaryType || 'monthly',
+            workingHours: employeeData.workingHours || '',
+            reference: employeeData.reference || '',
+            notes: employeeData.notes || '',
+            professionType: employeeData.professionType || '',
+            emergencyContactName: employeeData.emergencyContactName || '',
+            emergencyContactNumber: employeeData.emergencyContactNumber || '',
+            emergencyContactWhatsapp: employeeData.emergencyContactWhatsapp || '',
+            emergencyContactRelation: employeeData.emergencyContactRelation || '',
+            anyDisease: employeeData.anyDisease || '',
+            bloodGroup: employeeData.bloodGroup || '',
+            nearestRelativeContact: employeeData.nearestRelativeContact || '',
+            nearestRelativeWhatsapp: employeeData.nearestRelativeWhatsapp || '',
+            nearestRelativeRelation: employeeData.nearestRelativeRelation || '',
+            username: employeeData.user?.username || '',
+            previousProfilePhoto: employeeData.profilePhoto,
           };
-          setViewModal({ isOpen: true, type, data: mappedData });
-        } else {
-          // Fallback to provided data if API fails
-          setViewModal({ isOpen: true, type, data });
+          setViewFormData(mappedData);
+          setIsViewFormOpen(true);
         }
       } catch (error) {
         console.error('Error fetching employee details:', error);
-        // Fallback to provided data if API fails
-        setViewModal({ isOpen: true, type, data });
       } finally {
         setEmployeesLoading(false);
       }
-    } else {
-      // For vendors, use provided data directly
-      setViewModal({ isOpen: true, type, data });
+    } else if (type === 'Vendor') {
+      // Fetch full vendor details from API
+      try {
+        setVendorsLoading(true);
+        const response = await api.get(API_ROUTES.VENDOR.BY_ID(data.id));
+        if (response.success && response.data) {
+          const vendorData = response.data;
+          // Map API response to display format for VendorForm
+          const mappedData = {
+            name: vendorData.name || '',
+            email: vendorData.contact?.email || vendorData.email || '',
+            phone: vendorData.contact?.phone || vendorData.phone || '',
+            companyName: vendorData.companyName || '',
+            address: vendorData.address || '',
+            location: vendorData.location || '',
+            category: vendorData.category || '',
+            specialties: vendorData.services && vendorData.services.length > 0
+              ? vendorData.services.map((s: any, idx: number) => ({
+                  id: String(idx + 1),
+                  name: s.name || s.specialty || '',
+                  description: s.description || '',
+                }))
+              : [{ id: '1', name: vendorData.specialty || '', description: '' }],
+            rating: vendorData.rating?.average ? String(vendorData.rating.average) : '4.5',
+            hostelId: vendorData.hostelId ? String(vendorData.hostelId) : '',
+            paymentTerms: vendorData.paymentTerms || 'prepaid',
+            status: vendorData.status || 'active',
+            attachments: vendorData.attachments || [],
+          };
+          setViewFormData(mappedData);
+          setIsViewFormOpen(true);
+        }
+      } catch (error) {
+        console.error('Error fetching vendor details:', error);
+      } finally {
+        setVendorsLoading(false);
+      }
     }
   };
 
   const handleViewClose = () => {
     setViewModal({ isOpen: false, type: 'Tenant', data: null });
+    setIsViewFormOpen(false);
+    setViewFormData(null);
+    setViewingId(null);
+  };
+
+  const handleEdit = (id: number, type: 'Tenant' | 'Employee' | 'Vendor') => {
+    // This is just to satisfy the table's onEdit prop, but we might not need full edit here
+    // based on the user's request to "show all detail according to this user" when clicking View.
+    // However, if we want to allow editing from here too:
+    const data = type === 'Tenant' 
+      ? filteredTenants.find(t => t.id === id)
+      : type === 'Employee'
+      ? filteredEmployees.find(e => e.id === id)
+      : filteredVendors.find(v => v.id === id);
+    
+    if (data) {
+      handleView(type, data);
+    }
+  };
+
+  const handleDelete = (id: number, type: 'Tenant' | 'Employee' | 'Vendor', name: string) => {
+    if (window.confirm(`Are you sure you want to delete ${type} ${name}?`)) {
+      console.log(`Deleting ${type} with id ${id}`);
+      // Implement delete logic if needed
+    }
   };
 
   // Get transactions for tenant (filtered by hostel if selected)
@@ -503,279 +614,70 @@ const CommunicationBoard: React.FC = () => {
 
       {/* Content - No tabs, navigation handled by second sidebar */}
       <div className="glass rounded-2xl border border-white/20 shadow-xl">
-        {/* Biodata Cards */}
+        {/* Biodata Table */}
         <div className="p-6">
           {/* Tenants */}
           {activeTab === 'Tenants' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="overflow-x-auto">
               {tenantsLoading ? (
-                <div className="col-span-full text-center py-12">
+                <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                   <p className="text-slate-500">Loading tenants...</p>
                 </div>
-              ) : filteredTenants.length === 0 ? (
-                <div className="col-span-full text-center py-12">
-                  <p className="text-slate-500">No tenants found for the selected hostel.</p>
-                </div>
               ) : (
-                filteredTenants.map((tenant, idx) => (
-                <motion.div
-                  key={tenant.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="bg-white p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-all cursor-pointer"
-                >
-                  {/* Profile Header */}
-                  <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-100">
-                    {tenant.profilePhoto ? (
-                      <img 
-                        src={`${API_BASE_URL.replace('/api', '')}${tenant.profilePhoto}`} 
-                        alt={tenant.name}
-                        className="w-16 h-16 rounded-full object-cover border-2 border-gray-200 shadow-md"
-                        onError={(e) => {
-                          // Fallback to initials if image fails to load
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const parent = target.parentElement;
-                          if (parent) {
-                            const fallback = document.createElement('div');
-                            fallback.className = 'w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md';
-                            const firstName = tenant.firstName || tenant.name?.split(' ')[0] || '';
-                            const lastName = tenant.lastName || tenant.name?.split(' ')[1] || '';
-                            fallback.textContent = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || tenant.name.charAt(0).toUpperCase();
-                            parent.insertBefore(fallback, target);
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md">
-                        {(() => {
-                          const firstName = tenant.firstName || tenant.name?.split(' ')[0] || '';
-                          const lastName = tenant.lastName || tenant.name?.split(' ')[1] || '';
-                          return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || tenant.name.charAt(0).toUpperCase();
-                        })()}
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <h3 className="font-bold text-lg text-gray-900">{tenant.name}</h3>
-                      <Badge variant={tenant.status === 'active' || tenant.status === 'Active' ? 'success' : 'default'}>
-                        {tenant.status}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Contact Info */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <EnvelopeIcon className="w-5 h-5 text-blue-500" />
-                      <span className="text-sm">{tenant.email}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <PhoneIcon className="w-5 h-5 text-blue-500" />
-                      <span className="text-sm">{tenant.phone}</span>
-                    </div>
-                    {tenant.activeAllocation && (
-                      <div className="flex items-center gap-3 text-gray-600">
-                        <HomeIcon className="w-5 h-5 text-blue-500" />
-                        <span className="text-sm font-medium">
-                          Room {tenant.activeAllocation.room?.number || 'N/A'}-{tenant.activeAllocation.bed?.number || 'N/A'}
-                        </span>
-                      </div>
-                    )}
-                    {tenant.leaseStartDate && tenant.leaseEndDate && (
-                      <div className="flex items-center gap-3 text-gray-600">
-                        <CalendarIcon className="w-5 h-5 text-blue-500" />
-                        <span className="text-sm">
-                          {formatDate(tenant.leaseStartDate)} - {formatDate(tenant.leaseEndDate)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  {/* View Button */}
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <Button
-                      variant="outline"
-                      onClick={() => handleView('Tenant', tenant)}
-                      icon={EyeIcon}
-                      className="w-full"
-                    >
-                      View Details
-                    </Button>
-                  </div>
-                </motion.div>
-                ))
+                <TenantTable
+                  tenants={filteredTenants}
+                  onView={(id) => {
+                    const tenant = filteredTenants.find(t => t.id === id);
+                    if (tenant) handleView('Tenant', tenant);
+                  }}
+                  onEdit={(id) => handleEdit(id, 'Tenant')}
+                  onDelete={(id, name) => handleDelete(id, 'Tenant', name)}
+                />
               )}
             </div>
           )}
 
           {/* Employees */}
           {activeTab === 'Employees' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="overflow-x-auto">
               {employeesLoading ? (
-                <div className="col-span-full text-center py-12">
+                <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
                   <p className="text-slate-500">Loading employees...</p>
                 </div>
-              ) : filteredEmployees.length === 0 ? (
-                <div className="col-span-full text-center py-12">
-                  <p className="text-slate-500">No employees found for the selected hostel.</p>
-                </div>
               ) : (
-                filteredEmployees.map((employee, idx) => (
-                <motion.div
-                  key={employee.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="bg-white p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-all cursor-pointer"
-                >
-                  {/* Profile Header */}
-                  <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-100">
-                    {employee.profilePhoto ? (
-                      <img 
-                        src={`${API_BASE_URL.replace('/api', '')}${employee.profilePhoto}`} 
-                        alt={employee.name}
-                        className="w-16 h-16 rounded-full object-cover border-2 border-gray-200 shadow-md"
-                        onError={(e) => {
-                          // Fallback to initials if image fails to load
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const parent = target.parentElement;
-                          if (parent) {
-                            const fallback = document.createElement('div');
-                            fallback.className = 'w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md';
-                            const nameParts = employee.name?.split(' ') || [];
-                            const firstName = nameParts[0] || '';
-                            const lastName = nameParts[1] || '';
-                            fallback.textContent = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || employee.name.charAt(0).toUpperCase();
-                            parent.insertBefore(fallback, target);
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md">
-                        {(() => {
-                          const nameParts = employee.name?.split(' ') || [];
-                          const firstName = nameParts[0] || '';
-                          const lastName = nameParts[1] || '';
-                          return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || employee.name.charAt(0).toUpperCase();
-                        })()}
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <h3 className="font-bold text-lg text-gray-900">{employee.name}</h3>
-                      <Badge variant={employee.status === 'active' || employee.status === 'Active' ? 'success' : 'default'}>
-                        {employee.status}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Contact Info */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <BriefcaseIcon className="w-5 h-5 text-green-500" />
-                      <span className="text-sm font-semibold">{employee.role}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <EnvelopeIcon className="w-5 h-5 text-green-500" />
-                      <span className="text-sm">{employee.email}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <PhoneIcon className="w-5 h-5 text-green-500" />
-                      <span className="text-sm">{employee.phone}</span>
-                    </div>
-                    {employee.joinDate && (
-                      <div className="flex items-center gap-3 text-gray-600">
-                        <CalendarIcon className="w-5 h-5 text-green-500" />
-                        <span className="text-sm">Joined: {formatDate(employee.joinDate)}</span>
-                      </div>
-                    )}
-                  </div>
-                  {/* View Button */}
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <Button
-                      variant="outline"
-                      onClick={() => handleView('Employee', employee)}
-                      icon={EyeIcon}
-                      className="w-full"
-                    >
-                      View Details
-                    </Button>
-                  </div>
-                </motion.div>
-                ))
+                <EmployeeTable
+                  employees={filteredEmployees}
+                  onView={(id) => {
+                    const employee = filteredEmployees.find(e => e.id === id);
+                    if (employee) handleView('Employee', employee);
+                  }}
+                  onEdit={(id) => handleEdit(id, 'Employee')}
+                  onDelete={(id, name) => handleDelete(id, 'Employee', name)}
+                />
               )}
             </div>
           )}
 
           {/* Vendors */}
           {activeTab === 'Vendors' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredVendors.length === 0 ? (
-                <div className="col-span-full text-center py-12">
-                  <p className="text-slate-500">No vendors found for the selected hostel.</p>
+            <div className="overflow-x-auto">
+              {vendorsLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                  <p className="text-slate-500">Loading vendors...</p>
                 </div>
               ) : (
-                filteredVendors.map((vendor, idx) => (
-                <motion.div
-                  key={vendor.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="bg-white p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-all cursor-pointer"
-                >
-                  {/* Profile Header */}
-                  <div className="flex items-center gap-4 mb-4 pb-4 border-b border-gray-100">
-                    <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md">
-                      {vendor.name.charAt(0)}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-lg text-gray-900">{vendor.name}</h3>
-                      <Badge variant={vendor.status === 'Active' ? 'success' : 'default'}>
-                        {vendor.status}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Contact Info */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <BriefcaseIcon className="w-5 h-5 text-purple-500" />
-                      <span className="text-sm font-semibold">{vendor.specialty}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <PhoneIcon className="w-5 h-5 text-purple-500" />
-                      <span className="text-sm">{vendor.phone}</span>
-                    </div>
-                    {vendor.email && (
-                      <div className="flex items-center gap-3 text-gray-600">
-                        <EnvelopeIcon className="w-5 h-5 text-purple-500" />
-                        <span className="text-sm">{vendor.email}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <StarIcon className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-                      <span className="text-sm font-medium">{vendor.rating}/5 Rating</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <CalendarIcon className="w-5 h-5 text-purple-500" />
-                      <span className="text-sm">Last Invoice: {formatDate(vendor.lastInvoice)}</span>
-                    </div>
-                  </div>
-                  {/* View Button */}
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <Button
-                      variant="outline"
-                      onClick={() => handleView('Vendor', vendor)}
-                      icon={EyeIcon}
-                      className="w-full"
-                    >
-                      View Details
-                    </Button>
-                  </div>
-                </motion.div>
-                ))
+                <VendorTable
+                  vendors={filteredVendors}
+                  onView={(id) => {
+                    const vendor = filteredVendors.find(v => v.id === id);
+                    if (vendor) handleView('Vendor', vendor);
+                  }}
+                  onEdit={(id) => handleEdit(id, 'Vendor')}
+                  onDelete={(id, name) => handleDelete(id, 'Vendor', name)}
+                />
               )}
             </div>
           )}
@@ -1384,6 +1286,35 @@ const CommunicationBoard: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* View via Forms */}
+      {isViewFormOpen && viewFormType === 'Tenant' && (
+        <TenantForm
+          isOpen={isViewFormOpen}
+          onClose={handleViewClose}
+          onSubmit={async () => {}} // Read-only view
+          editingId={viewingId}
+          initialData={viewFormData}
+          hostelOptions={hostelOptions}
+          hostelsLoading={hostelsLoading}
+          isReadOnly={true}
+        />
+      )}
+
+      {isViewFormOpen && viewFormType === 'Employee' && (
+        <EmployeeForm
+          isOpen={isViewFormOpen}
+          onClose={handleViewClose}
+          onSubmit={async () => {}} // Read-only view
+          editingId={viewingId}
+          initialData={viewFormData}
+          hostelOptions={hostelOptions}
+          hostelsLoading={hostelsLoading}
+          roleOptions={roleOptions}
+          rolesLoading={rolesLoading}
+          isReadOnly={true}
+        />
+      )}
     </div>
   );
 };

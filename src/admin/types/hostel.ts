@@ -17,6 +17,8 @@ export interface Hostel {
   managerName: string;
   managerPhone: string;
   notes?: string;
+  category?: string;
+  type?: string;
 }
 
 /**
@@ -127,10 +129,11 @@ export interface Meal {
 export interface MessEntry {
   id: Id;
   hostelId: Id;
-  date: string; // ISO date string (YYYY-MM-DD)
+  day: string; // Day of week (Monday, Tuesday, etc.)
   breakfast: Meal;
   lunch: Meal;
   dinner: Meal;
+  price?: number; // Optional price for the meal
   createdAt: string; // ISO date string
   updatedAt?: string; // ISO date string
 }
@@ -139,7 +142,7 @@ export interface MessEntry {
  * Mess form data for creating/editing mess entries
  */
 export interface MessFormData {
-  date: string; // YYYY-MM-DD
+  day: string; // Day of week (Monday, Tuesday, etc.)
   breakfast: {
     items: Array<{ id?: string; name: string; quantity: string; unit?: string }>;
     notes?: string;
@@ -152,5 +155,6 @@ export interface MessFormData {
     items: Array<{ id?: string; name: string; quantity: string; unit?: string }>;
     notes?: string;
   };
+  price?: string; // Optional price for the meal
 }
 

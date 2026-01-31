@@ -14,6 +14,7 @@ import {
 import { StatCard } from '../../components/StatCard';
 import { Button } from '../../components/Button';
 import { formatCurrency } from '../../types/common';
+import { useCurrency } from '../../context/CurrencyContext';
 import ROUTES from '../../routes/routePaths';
 import {
   ComposedChart,
@@ -46,6 +47,7 @@ type ViewType = 'monthly' | 'yearly';
 const FinanceDashboard: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { currencySymbol } = useCurrency();
   const currentYear = new Date().getFullYear();
 
   // State management
@@ -57,6 +59,8 @@ const FinanceDashboard: React.FC = () => {
   const [cashFlowData, setCashFlowData] = useState<any[]>([]);
   const [ratiosData, setRatiosData] = useState<any>(null);
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
 
   // Get active view type from route
   const getActiveViewType = (): ViewType => {
@@ -73,27 +77,46 @@ const FinanceDashboard: React.FC = () => {
     }
   }, [location.pathname, navigate]);
 
-  // Fetch all FP&A data
+  // Fetch FP&A data based on view type
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Fetch all data in parallel
-        const [summary, monthly, categories, cashFlow, ratios] = await Promise.all([
-          getFPASummary({ year: selectedYear }),
-          getMonthlyComparison({ year: selectedYear }),
-          getCategoryBreakdown({ year: selectedYear }),
-          getCashFlow({ year: selectedYear }),
-          getFinancialRatios({ year: selectedYear }),
-        ]);
+        if (viewType === 'monthly') {
+          // Monthly View: Fetch current month or selected month data
+          const monthToFetch = selectedMonth || currentMonth;
+          
+          const [summary, monthly, categories, cashFlow, ratios] = await Promise.all([
+            getFPASummary({ year: selectedYear, month: monthToFetch }),
+            getMonthlyComparison({ year: selectedYear }),
+            getCategoryBreakdown({ year: selectedYear, month: monthToFetch }),
+            getCashFlow({ year: selectedYear }),
+            getFinancialRatios({ year: selectedYear }),
+          ]);
 
-        setSummaryData(summary.data);
-        setMonthlyData(monthly.data.monthlyData);
-        setCategoryData(categories.data);
-        setCashFlowData(cashFlow.data.cashFlow);
-        setRatiosData(ratios.data);
+          setSummaryData(summary.data);
+          setMonthlyData(monthly.data.monthlyData);
+          setCategoryData(categories.data);
+          setCashFlowData(cashFlow.data.cashFlow);
+          setRatiosData(ratios.data);
+        } else {
+          // Yearly View: Fetch year data only (all months aggregated)
+          const [summary, monthly, categories, cashFlow, ratios] = await Promise.all([
+            getFPASummary({ year: selectedYear }),
+            getMonthlyComparison({ year: selectedYear }),
+            getCategoryBreakdown({ year: selectedYear }),
+            getCashFlow({ year: selectedYear }),
+            getFinancialRatios({ year: selectedYear }),
+          ]);
+
+          setSummaryData(summary.data);
+          setMonthlyData(monthly.data.monthlyData);
+          setCategoryData(categories.data);
+          setCashFlowData(cashFlow.data.cashFlow);
+          setRatiosData(ratios.data);
+        }
       } catch (err: any) {
         console.error('Error fetching FP&A data:', err);
         setError(err?.message || 'Failed to load financial data. Please try again.');
@@ -103,7 +126,7 @@ const FinanceDashboard: React.FC = () => {
     };
 
     fetchData();
-  }, [selectedYear, viewType]);
+  }, [selectedYear, viewType, selectedMonth]);
 
   // Map category breakdown for charts
   const categoryBreakdown = useMemo(() => {
@@ -191,12 +214,12 @@ const FinanceDashboard: React.FC = () => {
 
   // Cash flow analysis - map API data
   const cashFlow = useMemo(() => {
-    return cashFlowData.map((item) => ({
-      month: item.monthAbbr || item.monthName,
-      income: item.income,
-      expenses: item.expense,
-      netCashFlow: item.netIncome,
-      cumulative: item.cumulativeCashFlow,
+    return cashFlowData.map((item: any) => ({
+      month: item.month || item.monthAbbr || item.monthName,
+      income: item.income || 0,
+      expenses: item.expense || item.expenses || 0,
+      netCashFlow: item.net || item.netIncome || 0,
+      cumulative: item.cumulative || item.cumulativeCashFlow || 0,
     }));
   }, [cashFlowData]);
 
@@ -231,6 +254,9 @@ const FinanceDashboard: React.FC = () => {
         revPAU: 0,
         monthlyRevPAU: 0,
         contributionMarginRatio: 0,
+        monthlyBills: 0,
+        monthlyRent: 0,
+        totalPayable: 0,
       };
     }
 
@@ -241,10 +267,34 @@ const FinanceDashboard: React.FC = () => {
       revPAU: pm.annualRevPAU || 0,
       monthlyRevPAU: pm.monthlyRevPAU || 0,
       contributionMarginRatio: pm.contributionMarginRatio || 0,
+      monthlyBills: pm.monthlyBills || 0,
+      monthlyRent: pm.monthlyRent || 0,
+      totalPayable: pm.totalPayable || 0,
     };
   }, [summaryData]);
 
+  // Get selected month details from monthly data
+  const selectedMonthData = useMemo(() => {
+    if (!selectedMonth || monthlyData.length === 0) {
+      return null;
+    }
+    return monthlyData.find(m => m.month === selectedMonth);
+  }, [selectedMonth, monthlyData]);
+
+  // Display KPIs - always use the additionalKPIs from latest API call
+  // The API already returns the correct values for the selected month when month parameter is passed
+  const displayKPIs = useMemo(() => {
+    return additionalKPIs;
+  }, [additionalKPIs]);
+
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+  // Handle chart click to show details for selected month
+  const handleChartClick = (monthData: any) => {
+    if (monthData && monthData.month) {
+      setSelectedMonth(parseInt(monthData.month));
+    }
+  };
 
   // PDF Export function - use API endpoint
   const handleExportPDF = async () => {
@@ -323,37 +373,88 @@ const FinanceDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* View Type Tabs */}
-      {/*<div className="bg-white rounded-xl border border-gray-200 shadow-sm p-1">
-        <div className="flex gap-2">
-          <button
-            onClick={() => navigate(ROUTES.FPA_MONTHLY)}
-            className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all ${
-              viewType === 'monthly'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-slate-600 hover:bg-gray-100'
-            }`}
-          >
-            Monthly View
-          </button>
-          <button
-            onClick={() => navigate(ROUTES.FPA_YEARLY)}
-            className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all ${
-              viewType === 'yearly'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-slate-600 hover:bg-gray-100'
-            }`}
-          >
-            Yearly View
-          </button>
+      {/* View Type Tabs & Month Selector */}
+      <div className="space-y-4">
+        {/* Tab Navigation */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-1">
+          <div className="flex gap-2">
+            <button
+              onClick={() => navigate(ROUTES.FPA_MONTHLY)}
+              className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all ${
+                viewType === 'monthly'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-600 hover:bg-gray-100'
+              }`}
+            >
+              Monthly View
+            </button>
+            <button
+              onClick={() => navigate(ROUTES.FPA_YEARLY)}
+              className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all ${
+                viewType === 'yearly'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-600 hover:bg-gray-100'
+              }`}
+            >
+              Yearly View
+            </button>
+          </div>
         </div>
-      </div> */}
+
+        {/* Month Selector - Only show in monthly view */}
+        {viewType === 'monthly' && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-slate-600">Select Month</p>
+                <p className="text-xs text-slate-500">
+                  {selectedMonth ? `Month ${selectedMonth}` : `Current: Month ${currentMonth}`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedMonth || currentMonth}
+                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  {[
+                    { num: 1, name: 'January' },
+                    { num: 2, name: 'February' },
+                    { num: 3, name: 'March' },
+                    { num: 4, name: 'April' },
+                    { num: 5, name: 'May' },
+                    { num: 6, name: 'June' },
+                    { num: 7, name: 'July' },
+                    { num: 8, name: 'August' },
+                    { num: 9, name: 'September' },
+                    { num: 10, name: 'October' },
+                    { num: 11, name: 'November' },
+                    { num: 12, name: 'December' },
+                  ].map((month) => (
+                    <option key={month.num} value={month.num}>
+                      {month.name} ({selectedYear})
+                    </option>
+                  ))}
+                </select>
+                {selectedMonth && (
+                  <button
+                    onClick={() => setSelectedMonth(null)}
+                    className="px-3 py-2 text-sm text-slate-600 hover:bg-gray-100 rounded-lg border border-gray-300 transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Net Income"
-          value={formatCurrency(viewType === 'monthly' ? kpis.monthlyNet : kpis.netIncome)}
+          value={formatCurrency(viewType === 'monthly' ? kpis.monthlyNet : kpis.netIncome, currencySymbol)}
           icon={<CurrencyDollarIcon className="w-6 h-6 text-white" />}
           variant="success"
           trend={{
@@ -363,13 +464,13 @@ const FinanceDashboard: React.FC = () => {
         />
         <StatCard
           title="Total Revenue"
-          value={formatCurrency(kpis.totalIncome)}
+          value={formatCurrency(kpis.totalIncome, currencySymbol)}
           icon={<ChartBarIcon className="w-6 h-6 text-white" />}
           variant="primary"
         />
         <StatCard
           title="Total Expenses"
-          value={formatCurrency(kpis.totalExpenses)}
+          value={formatCurrency(kpis.totalExpenses, currencySymbol)}
           icon={<ChartBarIcon className="w-6 h-6 text-white" />}
           variant="warning"
         />
@@ -392,8 +493,17 @@ const FinanceDashboard: React.FC = () => {
                 <h2 className="text-xl font-bold text-slate-900 mb-4">
                   Month-to-Month Comparison
                 </h2>
+                <p className="text-sm text-slate-500 mb-4">Click on a bar to see details for that month</p>
                 <ResponsiveContainer width="100%" height={400}>
-                  <ComposedChart data={monthlyDataWithComparison}>
+                  <ComposedChart 
+                    data={monthlyDataWithComparison}
+                    onClick={(state: any) => {
+                      if (state && state.activeTooltipIndex !== undefined) {
+                        const monthData = monthlyDataWithComparison[state.activeTooltipIndex];
+                        handleChartClick(monthData);
+                      }
+                    }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" stroke="#64748b" style={{ fontSize: '12px' }} />
                     <YAxis stroke="#64748b" style={{ fontSize: '12px' }} />
@@ -525,8 +635,17 @@ const FinanceDashboard: React.FC = () => {
                 <h2 className="text-xl font-bold text-slate-900 mb-4">
                   Year Overview - Monthly Breakdown
                 </h2>
+                <p className="text-sm text-slate-500 mb-4">Click on a bar to see details for that month</p>
                 <ResponsiveContainer width="100%" height={400}>
-                  <ComposedChart data={monthlyDataWithComparison}>
+                  <ComposedChart 
+                    data={monthlyDataWithComparison}
+                    onClick={(state: any) => {
+                      if (state && state.activeTooltipIndex !== undefined) {
+                        const monthData = monthlyDataWithComparison[state.activeTooltipIndex];
+                        handleChartClick(monthData);
+                      }
+                    }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" stroke="#64748b" style={{ fontSize: '12px' }} />
                     <YAxis stroke="#64748b" style={{ fontSize: '12px' }} />
@@ -593,46 +712,56 @@ const FinanceDashboard: React.FC = () => {
 
       {/* Additional KPIs */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h2 className="text-xl font-bold text-slate-900 mb-4">Additional Performance Metrics</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-slate-900">Additional Performance Metrics</h2>
+          {selectedMonthData && (
+            <button
+              onClick={() => setSelectedMonth(null)}
+              className="text-sm px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+            >
+              Clear Selection ({selectedMonthData.monthName || `Month ${selectedMonth}`})
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <div className="bg-gray-50 p-4 rounded-lg">
             <p className="text-sm text-slate-600 mb-2">Net Profit Growth</p>
             <p
               className={`text-2xl font-bold ${
-                additionalKPIs.netProfitGrowth > 0 ? 'text-green-600' : 'text-red-600'
+                displayKPIs.netProfitGrowth > 0 ? 'text-green-600' : 'text-red-600'
               }`}
             >
-              {additionalKPIs.netProfitGrowth > 0 ? '+' : ''}
-              {additionalKPIs.netProfitGrowth.toFixed(1)}%
+              {displayKPIs.netProfitGrowth > 0 ? '+' : ''}
+              {displayKPIs.netProfitGrowth.toFixed(1)}%
             </p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <p className="text-sm text-slate-600 mb-2">Collection Efficiency</p>
             <p className="text-2xl font-bold text-slate-900">
-              {additionalKPIs.collectionEfficiency.toFixed(1)}%
+              {displayKPIs.collectionEfficiency.toFixed(1)}%
             </p>
             <p className="text-xs text-slate-500 mt-1">Rent Collection Rate</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm text-slate-600 mb-2">Annual RevPAU</p>
+            <p className="text-sm text-slate-600 mb-2">Monthly Bills</p>
             <p className="text-2xl font-bold text-slate-900">
-              {formatCurrency(additionalKPIs.revPAU)}
+              {formatCurrency(displayKPIs.monthlyBills)}
             </p>
-            <p className="text-xs text-slate-500 mt-1">Per Unit Revenue</p>
+            <p className="text-xs text-slate-500 mt-1">Total Revenue</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm text-slate-600 mb-2">Monthly RevPAU</p>
+            <p className="text-sm text-slate-600 mb-2">Monthly Rent</p>
             <p className="text-2xl font-bold text-slate-900">
-              {formatCurrency(additionalKPIs.monthlyRevPAU)}
+              {formatCurrency(displayKPIs.monthlyRent)}
             </p>
             <p className="text-xs text-slate-500 mt-1">Per Unit/Month</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm text-slate-600 mb-2">Contribution Margin Ratio</p>
+            <p className="text-sm text-slate-600 mb-2">Total Payable</p>
             <p className="text-2xl font-bold text-slate-900">
-              {additionalKPIs.contributionMarginRatio.toFixed(1)}%
+              {formatCurrency(displayKPIs.totalPayable)}
             </p>
-            <p className="text-xs text-slate-500 mt-1">Of Revenue</p>
+            <p className="text-xs text-slate-500 mt-1">Total Rent Due</p>
           </div>
         </div>
       </div>

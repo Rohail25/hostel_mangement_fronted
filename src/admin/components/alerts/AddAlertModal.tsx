@@ -14,6 +14,9 @@ import {
 import { Select } from '../Select';
 import * as hostelService from '../../services/hostel.service';
 import * as alertService from '../../services/alert.service';
+import { api } from '../../../services/apiClient';
+import { API_ROUTES } from '../../../services/api.config';
+import * as employeeService from '../../services/employee.service';
 
 export type AlertType = 'bill' | 'rent' | 'payable' | 'receivable' | 'maintenance';
 export type MaintenanceType = 'room_cleaning' | 'repairs' | 'purchase_demand';
@@ -33,6 +36,7 @@ export interface AlertFormData {
   maintenanceType?: MaintenanceType;
   hostelId: string;
   roomId: string;
+  bedId?: string;
   tenantId?: string;
   amount?: string;
   dueDate: string;
@@ -45,6 +49,7 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
+  editingAlert,
 }) => {
   const [activeTab, setActiveTab] = useState<'alertInfo'>('alertInfo');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +84,10 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({
   
   const [usersLoading, setUsersLoading] = useState(false);
   const [userOptions, setUserOptions] = useState<Array<{ value: string; label: string }>>([]);
+  
+  const [bedOptions, setBedOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [bedsLoading, setBedsLoading] = useState(false);
+  const [selectedBedInfo, setSelectedBedInfo] = useState<{ bedNumber?: string } | null>(null);
 
   // Priority options
   const priorityOptions = [
@@ -104,10 +113,37 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({
     { value: 'purchase_demand', label: 'Purchase Demand' },
   ];
 
-  // Load hostels when modal opens
+  // Load hostels, tenants, and employees when modal opens
   useEffect(() => {
     if (isOpen) {
       loadHostels();
+      loadTenants();
+      loadEmployees();
+      
+      // If editing, populate form with alert data
+      if (editingAlert) {
+        setFormData({
+          title: editingAlert.title || '',
+          description: editingAlert.description || '',
+          priority: (editingAlert as any).priority || 'medium',
+          type: (editingAlert as any).type || 'bill',
+          maintenanceType: (editingAlert as any).maintenanceType,
+          hostelId: editingAlert.hostel?.id ? String(editingAlert.hostel.id) : '',
+          roomId: editingAlert.room?.id ? String(editingAlert.room.id) : '',
+          bedId: '',
+          tenantId: editingAlert.tenant?.id ? String(editingAlert.tenant.id) : '',
+          amount: editingAlert.amount ? String(editingAlert.amount) : '',
+          dueDate: editingAlert.dueDate || '',
+          assignedTo: editingAlert.assignedTo ? String(editingAlert.assignedTo) : '',
+          remarks: '',
+          attachment: null,
+        });
+        
+        // Load rooms if hostel is set
+        if (editingAlert.hostel?.id) {
+          loadRoomsByHostel(editingAlert.hostel.id);
+        }
+      }
     } else {
       // Reset form when modal closes
       setFormData({
@@ -132,6 +168,7 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({
         maintenanceType: undefined,
         hostelId: '',
         roomId: '',
+        bedId: '',
         tenantId: '',
         amount: '',
         dueDate: '',
@@ -139,8 +176,44 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({
         remarks: '',
         attachment: null,
       });
+      setBedOptions([]);
+      setSelectedBedInfo(null);
     }
   }, [isOpen]);
+
+  // Ensure editing tenant is in options after tenants are loaded
+  useEffect(() => {
+    if (isOpen && editingAlert?.tenant?.id && tenantOptions.length > 0) {
+      const tenantId = String(editingAlert.tenant.id);
+      const tenantExists = tenantOptions.some(opt => opt.value === tenantId);
+      if (!tenantExists) {
+        // Fetch the specific tenant and add it to options
+        const fetchTenant = async () => {
+          try {
+            const tenantResponse = await api.get(API_ROUTES.TENANT.BY_ID(editingAlert.tenant.id));
+            if (tenantResponse.success && tenantResponse.data) {
+              const tenant = tenantResponse.data;
+              setTenantOptions(prev => {
+                // Check again to avoid duplicates
+                const exists = prev.some(opt => opt.value === tenantId);
+                if (exists) return prev;
+                return [
+                  ...prev,
+                  {
+                    value: tenantId,
+                    label: tenant.name || tenant.fullName || `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() || 'Unknown Tenant',
+                  }
+                ];
+              });
+            }
+          } catch (err) {
+            console.error('Error loading tenant details for editing:', err);
+          }
+        };
+        fetchTenant();
+      }
+    }
+  }, [isOpen, editingAlert, tenantOptions]);
 
   // Load rooms when hostel is selected
   useEffect(() => {
@@ -148,9 +221,27 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({
       loadRoomsByHostel(Number(formData.hostelId));
     } else {
       setRoomOptions([]);
-      setFormData(prev => ({ ...prev, roomId: '', tenantId: '' }));
+      setBedOptions([]);
+      setFormData(prev => ({ ...prev, roomId: '', bedId: '', tenantId: '' }));
     }
   }, [formData.hostelId]);
+
+  // Load beds when room is selected
+  useEffect(() => {
+    if (formData.roomId) {
+      loadBedsByRoom(Number(formData.roomId));
+    } else {
+      setBedOptions([]);
+      setFormData(prev => ({ ...prev, bedId: '' }));
+    }
+  }, [formData.roomId]);
+
+  // Auto-fill fields when tenant is selected
+  useEffect(() => {
+    if (formData.tenantId) {
+      loadTenantDetails(Number(formData.tenantId));
+    }
+  }, [formData.tenantId]);
 
   const loadHostels = async () => {
     try {
@@ -186,6 +277,174 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({
       setRoomOptions([]);
     } finally {
       setRoomsLoading(false);
+    }
+  };
+
+  const loadBedsByRoom = async (roomId: number) => {
+    try {
+      setBedsLoading(true);
+      const response = await api.get(API_ROUTES.BED.BEDS_BY_ROOM(roomId));
+      if (response.success && response.data) {
+        const beds = Array.isArray(response.data) ? response.data : response.data.items || [];
+        setBedOptions(
+          beds.map((bed: any) => ({
+            value: String(bed.id),
+            label: `Bed ${bed.bedNumber || bed.number || bed.id}`,
+          }))
+        );
+      } else {
+        setBedOptions([]);
+      }
+    } catch (error) {
+      console.error('Error loading beds by room:', error);
+      setBedOptions([]);
+    } finally {
+      setBedsLoading(false);
+    }
+  };
+
+  const loadTenants = async () => {
+    try {
+      setTenantsLoading(true);
+      // Fetch all tenants by using a high limit
+      const response = await api.get(`${API_ROUTES.TENANT.LIST}?limit=1000`);
+      if (response.success && response.data) {
+        // Handle different response structures
+        let tenants: any[] = [];
+        if (Array.isArray(response.data)) {
+          tenants = response.data;
+        } else if (response.data.tenants && Array.isArray(response.data.tenants)) {
+          tenants = response.data.tenants;
+        } else if (response.data.items && Array.isArray(response.data.items)) {
+          tenants = response.data.items;
+        } else if (response.data.rows && Array.isArray(response.data.rows)) {
+          tenants = response.data.rows;
+        }
+        
+        const tenantOptionsList = tenants.map((t: any) => ({
+          value: String(t.id),
+          label: t.name || t.fullName || `${t.firstName || ''} ${t.lastName || ''}`.trim() || 'Unknown Tenant',
+        }));
+        
+        setTenantOptions(tenantOptionsList);
+        
+        // If editing and tenant is not in the list, add it
+        if (editingAlert?.tenant?.id) {
+          const tenantId = String(editingAlert.tenant.id);
+          const tenantExists = tenantOptionsList.some(opt => opt.value === tenantId);
+          if (!tenantExists) {
+            // Fetch the specific tenant and add it to options
+            try {
+              const tenantResponse = await api.get(API_ROUTES.TENANT.BY_ID(editingAlert.tenant.id));
+              if (tenantResponse.success && tenantResponse.data) {
+                const tenant = tenantResponse.data;
+                setTenantOptions(prev => [
+                  ...prev,
+                  {
+                    value: tenantId,
+                    label: tenant.name || tenant.fullName || `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() || 'Unknown Tenant',
+                  }
+                ]);
+              }
+            } catch (err) {
+              console.error('Error loading tenant details:', err);
+            }
+          }
+        }
+      } else {
+        setTenantOptions([]);
+      }
+    } catch (error) {
+      console.error('Error loading tenants:', error);
+      setTenantOptions([]);
+    } finally {
+      setTenantsLoading(false);
+    }
+  };
+
+  const loadEmployees = async () => {
+    try {
+      setUsersLoading(true);
+      const employees = await employeeService.getAllEmployees();
+      setUserOptions(
+        employees.map(emp => ({
+          value: String(emp.userId || emp.id),
+          label: emp.name || emp.user?.username || 'Unknown Employee',
+        }))
+      );
+    } catch (error) {
+      console.error('Error loading employees:', error);
+      setUserOptions([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const loadTenantDetails = async (tenantId: number) => {
+    try {
+      const response = await api.get(API_ROUTES.TENANT.BY_ID(tenantId));
+      if (response.success && response.data) {
+        const tenant = response.data;
+        
+        // Auto-fill amount from totalDue
+        if (tenant.totalDue !== undefined && tenant.totalDue !== null) {
+          setFormData(prev => ({ ...prev, amount: String(tenant.totalDue) }));
+        }
+        
+        // Auto-fill allocation info if available
+        if (tenant.allocation) {
+          // Get allocation details - need to fetch active allocation
+          try {
+            const allocationResponse = await api.get(`/admin/allocations?tenantId=${tenantId}&status=active`);
+            if (allocationResponse.success && allocationResponse.data) {
+              const allocations = Array.isArray(allocationResponse.data) 
+                ? allocationResponse.data 
+                : allocationResponse.data.items || [];
+              const activeAllocation = allocations[0];
+              
+              if (activeAllocation) {
+                // Set hostel
+                if (activeAllocation.hostelId) {
+                  const hostelId = String(activeAllocation.hostelId);
+                  setFormData(prev => ({ ...prev, hostelId }));
+                  
+                  // Load rooms and wait for them to load
+                  await loadRoomsByHostel(activeAllocation.hostelId);
+                  
+                  // Set room after rooms are loaded
+                  setTimeout(async () => {
+                    if (activeAllocation.roomId) {
+                      setFormData(prev => ({ ...prev, roomId: String(activeAllocation.roomId) }));
+                      
+                      // Load beds and wait for them to load
+                      await loadBedsByRoom(activeAllocation.roomId);
+                      
+                      // Set bed after beds are loaded
+                      setTimeout(() => {
+                        if (activeAllocation.bedId) {
+                          setFormData(prev => ({ ...prev, bedId: String(activeAllocation.bedId) }));
+                        }
+                      }, 300);
+                    }
+                  }, 300);
+                }
+              }
+            }
+          } catch (allocError) {
+            console.error('Error loading allocation:', allocError);
+            // Fallback to tenant.allocation if API call fails
+            if (tenant.allocation.hostel) {
+              const hostelOption = hostelOptions.find(h => h.label === tenant.allocation.hostel);
+              if (hostelOption) {
+                setFormData(prev => ({ ...prev, hostelId: hostelOption.value }));
+                loadRoomsByHostel(Number(hostelOption.value));
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading tenant details:', error);
     }
   };
 
@@ -340,7 +599,7 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({
                       disabled={loading}
                       className="px-6 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {loading ? 'Adding...' : 'Add Alert'}
+                      {loading ? (editingAlert ? 'Updating...' : 'Adding...') : (editingAlert ? 'Update Alert' : 'Add Alert')}
                     </button>
                     <button
                       onClick={onClose}
@@ -461,6 +720,25 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({
                               disabled={roomsLoading || !formData.hostelId}
                             />
                           </div>
+                        </div>
+
+                        {/* Bed (Seat) - Full width */}
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Bed (Seat)
+                          </label>
+                          <Select
+                            value={formData.bedId || ''}
+                            onChange={(value) => handleInputChange('bedId', value)}
+                            options={bedOptions}
+                            placeholder={bedsLoading ? "Loading beds..." : formData.roomId ? "Select Bed (Optional)" : "Select Room first"}
+                            disabled={bedsLoading || !formData.roomId}
+                          />
+                          {selectedBedInfo?.bedNumber && (
+                            <p className="mt-1 text-sm text-slate-500">
+                              Selected: Bed {selectedBedInfo.bedNumber}
+                            </p>
+                          )}
                         </div>
 
                         {/* Tenant and Amount - Two per row */}
@@ -586,7 +864,7 @@ export const AddAlertModal: React.FC<AddAlertModalProps> = ({
                       disabled={loading}
                       className="px-6 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {loading ? 'Adding...' : 'Save'}
+                      {loading ? (editingAlert ? 'Updating...' : 'Adding...') : (editingAlert ? 'Update' : 'Save')}
                     </button>
                   </div>
                 </form>

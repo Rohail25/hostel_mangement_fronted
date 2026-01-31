@@ -21,10 +21,9 @@ export const AdminLayout: React.FC = () => {
   
   // Check if People, Vendor, Accounts, Communication, FP&A, or Alerts section is active by examining the current route
   const isPeopleActive = location.pathname.startsWith(ROUTES.PEOPLE);
-  // Check if Vendor Management (main sidebar) is active - should NOT show second sidebar
+  // Vendor Management (main sidebar) should show second sidebar like Accounts
   const isVendorManagementActive = location.pathname.startsWith(ROUTES.VENDOR_MANAGEMENT);
-  // Vendor routes (but NOT Vendor Management from main sidebar) should show second sidebar
-  const isVendorActive = location.pathname.startsWith(ROUTES.VENDOR) && !isVendorManagementActive;
+  const isVendorActive = location.pathname.startsWith(ROUTES.VENDOR);
   const isAccountsActive = location.pathname.startsWith(ROUTES.ACCOUNTS);
   const isCommunicationActive = location.pathname.startsWith(ROUTES.COMM);
   const isFPAActive = location.pathname.startsWith(ROUTES.FPA);
@@ -45,24 +44,24 @@ export const AdminLayout: React.FC = () => {
    * This useEffect handles the automatic collapse/expand based on People/Vendor route
    */
   useEffect(() => {
-    if (isSecondSidebarActive && !isVendorManagementActive) {
-      // People or Vendor (but not Vendor Management) is active: collapse sidebar automatically to show second sidebar
+    if (isSecondSidebarActive) {
+      // People, Vendor, Accounts, Communication, FP&A, or Alerts is active: collapse sidebar automatically to show second sidebar
       // Don't change isManuallyCollapsed here - we want to preserve user's manual preference
     } else {
-      // People/Vendor is not active: expand sidebar back
+      // Second sidebar is not active: expand sidebar back
       // Only reset if it wasn't manually collapsed by user
       // If user manually collapsed it, they probably want it to stay collapsed
-      // So we only auto-expand if it was collapsed due to People/Vendor being active
-      // For simplicity, we'll auto-expand when leaving People/Vendor (user can manually collapse again if needed)
+      // So we only auto-expand if it was collapsed due to second sidebar being active
+      // For simplicity, we'll auto-expand when leaving (user can manually collapse again if needed)
       setIsManuallyCollapsed(false);
     }
-  }, [isSecondSidebarActive, isVendorManagementActive]);
+  }, [isSecondSidebarActive]);
   
   /**
    * Determine final collapsed state:
-   * - Collapsed if People or Vendor (but NOT Vendor Management) is active (automatic) OR manually collapsed by user
+   * - Collapsed if second sidebar is active (automatic) OR manually collapsed by user
    */
-  const isSidebarCollapsed = (isSecondSidebarActive && !isVendorManagementActive) || isManuallyCollapsed;
+  const isSidebarCollapsed = isSecondSidebarActive || isManuallyCollapsed;
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 overflow-hidden">
@@ -97,8 +96,8 @@ export const AdminLayout: React.FC = () => {
       {/* Main Sidebar - Collapses to icons when People is active or manually toggled */}
       <Sidebar isCollapsed={isSidebarCollapsed} />
 
-      {/* Second Sidebar - Only appears when People, Vendor (but NOT Vendor Management), Accounts, Communication, or FP&A is active */}
-      <SecondSidebar isVisible={isSecondSidebarActive && !isVendorManagementActive} />
+      {/* Second Sidebar - Only appears when People, Vendor, Accounts, Communication, or FP&A is active */}
+      <SecondSidebar isVisible={isSecondSidebarActive} />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden relative">

@@ -76,9 +76,11 @@ const SecondSidebar: React.FC<SecondSidebarProps> = ({ isVisible }) => {
     return null;
   };
 
-  // Get active section from URL for Vendor (always Management)
+  // Get active section from URL for Vendor Management
   const getActiveVendorSection = (): string | null => {
-    if (location.pathname.includes('/vendor/management') || location.pathname.includes('/vendor')) return 'Vendor Management';
+    if (location.pathname.includes('/vendor/management')) return 'Vendor Management';
+    if (location.pathname.includes('/vendor/list')) return 'Vendor List';
+    if (location.pathname.includes('/vendor')) return 'Vendor Management'; // Default to Vendor Management
     return null;
   };
 
@@ -132,10 +134,10 @@ const SecondSidebar: React.FC<SecondSidebarProps> = ({ isVisible }) => {
     { id: 'Prospects', label: 'Prospects', path: ROUTES.PROSPECTS },
   ];
 
-  // Directory sections for Vendor
+  // Directory sections for Vendor Management
   const vendorSections: VendorSection[] = [
-    { id: 'Vendor List', label: 'Vendor List', path: ROUTES.VENDOR_LIST },
     { id: 'Vendor Management', label: 'Vendor Management', path: ROUTES.VENDOR_MANAGEMENT },
+    { id: 'Vendor List', label: 'Vendor List', path: ROUTES.VENDOR_LIST },
   ];
 
   // Directory sections for Accounts - Hierarchical structure
@@ -172,6 +174,7 @@ const SecondSidebar: React.FC<SecondSidebarProps> = ({ isVisible }) => {
   const alertsSections: AlertsSection[] = [
     { id: 'Bills', label: 'Bills', path: ROUTES.ALERTS_BILLS },
     { id: 'Maintenance', label: 'Maintenance', path: ROUTES.ALERTS_MAINTENANCE },
+    { id: 'Alert Bin', label: 'Alert Bin', path: ROUTES.ALERTS_BIN },
   ];
 
   /**

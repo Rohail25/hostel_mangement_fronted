@@ -1,4 +1,7 @@
-import type { FormEvent } from 'react'
+import { useRef, useState } from 'react'
+import type { FormEvent, ChangeEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { api } from '../services/apiClient'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 
@@ -25,15 +28,235 @@ const optionalFeatures = [
     'Guest review management panel with response templates',
 ]
 
+interface OwnerFormData {
+    name: string
+    email: string
+    phone: string
+    password: string
+    confirmPassword: string
+    alternatePhone: string
+    HostelName: string
+    taxId: string
+    registrationNumber: string
+    hostelName: string
+    hostelCity: string
+    hostelAddress: string
+    hostelMap: string
+    hostelType: string
+    roomCount: string
+    amenities: string
+    photos: FileList | null
+    startingPrice: string
+    accountTitle: string
+    iban: string
+    payoutFrequency: string
+    termsAgreed: boolean
+}
+
 const OwnerHotel = () => {
-    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault()
-        const form = event.currentTarget
-        const data = new FormData(form)
-        const ownerName = data.get('ownerName')
-        alert(`Thanks ${ownerName}, our partner success team will review your application within 24 hours.`)
-        form.reset()
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+    const navigate = useNavigate()
+    const formRef = useRef<HTMLFormElement>(null)
+    const [currentStep, setCurrentStep] = useState(1)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [formData, setFormData] = useState<OwnerFormData>({
+        name: '',
+        email: '',
+        phone: '',
+        password: '',
+        confirmPassword: '',
+        alternatePhone: '',
+        HostelName: '',
+        taxId: '',
+        registrationNumber: '',
+        hostelName: '',
+        hostelCity: '',
+        hostelAddress: '',
+        hostelMap: '',
+        hostelType: 'Luxury',
+        roomCount: '',
+        amenities: '',
+        photos: null,
+        startingPrice: '',
+        accountTitle: '',
+        iban: '',
+        payoutFrequency: 'Weekly',
+        termsAgreed: false,
+    })
+
+    const handleInputChange = (e: any) => {
+        const { name, value, type } = e.target
+        if (type === 'checkbox') {
+            setFormData(prev => ({
+                ...prev,
+                [name]: e.target.checked
+            }))
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                [name]: value
+            }))
+        }
+        setError(null)
+    }
+
+    const handleFileChange = (e: any) => {
+        setFormData(prev => ({
+            ...prev,
+            photos: e.target.files
+        }))
+    }
+
+    const validateStep1 = (): boolean => {
+        if (!formData.name.trim()) {
+            setError('Owner name is required')
+            return false
+        }
+        if (!formData.email.trim()) {
+            setError('Email is required')
+            return false
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            setError('Invalid email format')
+            return false
+        }
+        if (!formData.phone.trim()) {
+            setError('Phone number is required')
+            return false
+        }
+        if (!formData.password.trim()) {
+            setError('Password is required')
+            return false
+        }
+        if (formData.password.length < 8) {
+            setError('Password must be at least 8 characters')
+            return false
+        }
+        if (formData.password !== formData.confirmPassword) {
+            setError('Passwords do not match')
+            return false
+        }
+        return true
+    }
+
+    const validateStep2 = (): boolean => {
+        if (!formData.hostelName.trim()) {
+            setError('Hotel name is required')
+            return false
+        }
+        if (!formData.hostelCity.trim()) {
+            setError('City is required')
+            return false
+        }
+        if (!formData.hostelAddress.trim()) {
+            setError('Address is required')
+            return false
+        }
+        if (!formData.roomCount.trim() || parseInt(formData.roomCount) < 1) {
+            setError('Number of rooms must be at least 1')
+            return false
+        }
+        if (!formData.startingPrice.trim() || parseFloat(formData.startingPrice) <= 0) {
+            setError('Starting price must be greater than 0')
+            return false
+        }
+        if (!formData.termsAgreed) {
+            setError('You must agree to the Terms & Conditions')
+            return false
+        }
+        return true
+    }
+
+    const handleNext = () => {
+        if (currentStep === 1 && validateStep1()) {
+            setCurrentStep(2)
+        }
+    }
+
+    const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault()
+
+        if (!validateStep2()) {
+            return
+        }
+
+        try {
+            setIsSubmitting(true)
+            setError(null)
+
+            // Create FormData for multipart/form-data
+            const formDataToSend = new FormData()
+
+            // Add owner info
+            formDataToSend.append('name', formData.name)
+            formDataToSend.append('email', formData.email)
+            formDataToSend.append('phone', formData.phone)
+            formDataToSend.append('password', formData.password)
+            formDataToSend.append('username', formData.name.replace(/\s+/g, '_'))
+            if (formData.alternatePhone) formDataToSend.append('alternatePhone', formData.alternatePhone)
+            if (formData.HostelName) formDataToSend.append('HostelName', formData.HostelName)
+            if (formData.taxId) formDataToSend.append('taxId', formData.taxId)
+            if (formData.registrationNumber) formDataToSend.append('registrationNumber', formData.registrationNumber)
+
+            // Create hostel data
+            const hostelData = {
+                name: formData.hostelName,
+                type: [formData.hostelType],
+                category: ['home2'],
+                address: {
+                    city: formData.hostelCity,
+                    street: formData.hostelAddress,
+                },
+                amenities: formData.amenities.split(',').map(a => a.trim()).filter(a => a),
+                contactInfo: {
+                    phone: formData.phone,
+                    email: formData.email,
+                },
+                operatingHours: {
+                    checkIn: '14:00',
+                    checkOut: '11:00',
+                },
+            }
+            formDataToSend.append('hostelData', JSON.stringify(hostelData))
+
+            // Add profile photo if any
+            if (formData.photos && formData.photos.length > 0) {
+                formDataToSend.append('profilePhoto', formData.photos[0])
+            }
+
+            // Step 1: Create Owner account (Public registration endpoint - no auth required)
+            const ownerResponse = await api.post('/admin/owner/register', formDataToSend, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            })
+
+            if (!ownerResponse.success) {
+                throw new Error(ownerResponse.message || 'Failed to create owner account')
+            }
+
+            const ownerId = ownerResponse.data.id
+
+            // Step 2: Create Hostel linked to owner
+            const hostelResponse = await api.post('/admin/hostels', {
+                ...hostelData,
+                ownerId: ownerId,
+                status: 'active',
+            })
+
+            if (!hostelResponse.success) {
+                throw new Error(hostelResponse.message || 'Failed to create hostel')
+            }
+
+            // Success! Redirect to login
+            alert('Registration successful! Your account has been created. Please login to continue.')
+            navigate('/login')
+        } catch (err: any) {
+            console.error('Submission error:', err)
+            setError(err.message || 'Failed to complete registration. Please try again.')
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     return (
@@ -182,210 +405,299 @@ const OwnerHotel = () => {
                             <p className="text-gray-600 text-lg">Tell us about your property and we will help you go live quickly.</p>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-10">
-                            <section className="space-y-6 rounded-[32px] border border-gray-100 bg-gray-50 p-8 shadow-[0_35px_70px_-70px_rgba(15,23,42,0.4)]">
-                                <h3 className="text-2xl font-semibold text-gray-900">Owner information</h3>
-                                <div className="grid gap-5 sm:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">Full name</label>
-                                        <input
-                                            name="ownerName"
-                                            required
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="Ahmed Raza"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">Email</label>
-                                        <input
-                                            name="ownerEmail"
-                                            type="email"
-                                            required
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="you@hotel.com"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">Phone number</label>
-                                        <input
-                                            name="ownerPhone"
-                                            required
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="+92 300 1234567"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">CNIC / Business registration (optional)</label>
-                                        <input
-                                            name="ownerCnic"
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="42101-1234567-1"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">Create password</label>
-                                        <input
-                                            name="ownerPassword"
-                                            type="password"
-                                            required
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="Minimum 8 characters"
-                                        />
-                                    </div>
+                        <form ref={formRef} onSubmit={handleSubmit} className="space-y-10">
+                            {/* Error Message */}
+                            {error && (
+                                <div className="max-w-4xl mx-auto p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                                    {error}
                                 </div>
-                            </section>
+                            )}
 
-                            <section className="space-y-6 rounded-[32px] border border-gray-100 bg-gray-50 p-8 shadow-[0_35px_70px_-70px_rgba(15,23,42,0.4)]">
-                                <h3 className="text-2xl font-semibold text-gray-900">Hotel information</h3>
-                                <div className="grid gap-5 sm:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">Hotel name</label>
-                                        <input
-                                            name="hotelName"
-                                            required
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="Hotling Grand Islamabad"
-                                        />
+                            {/* Step Indicator */}
+                            <div className="max-w-4xl mx-auto flex gap-4">
+                                {[1, 2].map((step) => (
+                                    <div key={step} className="flex-1">
+                                        <div className={`h-2 rounded-full ${currentStep >= step ? 'bg-primary-600' : 'bg-gray-200'}`} />
+                                        <p className="text-xs text-gray-600 mt-2 text-center">
+                                            {step === 1 ? 'Owner Information' : 'Hotel Information'}
+                                        </p>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">City</label>
-                                        <input
-                                            name="hotelCity"
-                                            required
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="Islamabad"
-                                        />
-                                    </div>
-                                    <div className="space-y-2 sm:col-span-2">
-                                        <label className="text-sm font-semibold text-gray-700">Full address</label>
-                                        <input
-                                            name="hotelAddress"
-                                            required
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="Plot 21, Blue Area, Islamabad"
-                                        />
-                                    </div>
-                                    <div className="space-y-2 sm:col-span-2">
-                                        <label className="text-sm font-semibold text-gray-700">Google Maps link</label>
-                                        <input
-                                            name="hotelMap"
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="https://maps.google.com/..."
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">Hotel type</label>
-                                        <select
-                                            name="hotelType"
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            defaultValue="Luxury"
-                                        >
-                                            <option>Luxury</option>
-                                            <option>Business</option>
-                                            <option>Budget</option>
-                                            <option>Guest House</option>
-                                            <option>Resort</option>
-                                            <option>Boutique</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">Number of rooms</label>
-                                        <input
-                                            name="roomCount"
-                                            type="number"
-                                            min={1}
-                                            required
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="65"
-                                        />
-                                    </div>
-                                    <div className="space-y-2 sm:col-span-2">
-                                        <label className="text-sm font-semibold text-gray-700">Amenities</label>
-                                        <textarea
-                                            name="amenities"
-                                            rows={3}
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="Free WiFi, Rooftop pool, Airport shuttle, Private parking..."
-                                        />
-                                    </div>
-                                    <div className="space-y-2 sm:col-span-2">
-                                        <label className="text-sm font-semibold text-gray-700">Upload photos (3-5 images)</label>
-                                        <input
-                                            name="photos"
-                                            type="file"
-                                            multiple
-                                            accept="image/*"
-                                            className="w-full rounded-xl border border-dashed border-gray-300 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">Starting price per night (PKR)</label>
-                                        <input
-                                            name="startingPrice"
-                                            type="number"
-                                            min={0}
-                                            required
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="8500"
-                                        />
-                                    </div>
-                                </div>
-                            </section>
-
-                            <section className="space-y-6 rounded-[32px] border border-gray-100 bg-gray-50 p-8 shadow-[0_35px_70px_-70px_rgba(15,23,42,0.4)]">
-                                <h3 className="text-2xl font-semibold text-gray-900">Payment information</h3>
-                                <div className="grid gap-5 sm:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">Bank account title</label>
-                                        <input
-                                            name="accountTitle"
-                                            required
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="Hotling Hospitality Pvt Ltd"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">IBAN / Account number</label>
-                                        <input
-                                            name="iban"
-                                            required
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            placeholder="PK12 HBLB 0000 1234 5678 9000"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-semibold text-gray-700">Preferred payout frequency</label>
-                                        <select
-                                            name="payoutFrequency"
-                                            className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                            defaultValue="Weekly"
-                                        >
-                                            <option>Weekly</option>
-                                            <option>Bi-weekly</option>
-                                            <option>Monthly</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <div className="space-y-4">
-                                <label className="inline-flex items-start gap-3 text-sm text-gray-600">
-                                    <input type="checkbox" required className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-                                    <span>
-                                        I confirm that all details are accurate and I agree to the{' '}
-                                        <a href="/terms" className="text-primary-600 underline hover:text-primary-700">
-                                            Terms &amp; Conditions
-                                        </a>
-                                        .
-                                    </span>
-                                </label>
-                                <button
-                                    type="submit"
-                                    className="inline-flex items-center rounded-full bg-primary-600 text-white px-8 py-3 text-sm font-semibold hover:bg-primary-700 transition-colors"
-                                >
-                                    Register my hotel
-                                </button>
+                                ))}
                             </div>
+
+                            {/* Step 1: Owner Information */}
+                            {currentStep === 1 && (
+                                <div className="max-w-4xl mx-auto">
+                                    <section className="space-y-6 rounded-[32px] border border-gray-100 bg-gray-50 p-8 shadow-[0_35px_70px_-70px_rgba(15,23,42,0.4)]">
+                                        <h3 className="text-2xl font-semibold text-gray-900">Owner Information</h3>
+                                        <div className="grid gap-5 sm:grid-cols-2">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-gray-700">Full name <span className="text-red-500">*</span></label>
+                                            <input
+                                                name="name"
+                                                required
+                                                value={formData.name}
+                                                onChange={handleInputChange}
+                                                className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                placeholder="Ahmed Raza"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-gray-700">Email <span className="text-red-500">*</span></label>
+                                            <input
+                                                name="email"
+                                                type="email"
+                                                required
+                                                value={formData.email}
+                                                onChange={handleInputChange}
+                                                className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                placeholder="you@hotel.com"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-gray-700">Phone number <span className="text-red-500">*</span></label>
+                                            <input
+                                                name="phone"
+                                                required
+                                                value={formData.phone}
+                                                onChange={handleInputChange}
+                                                className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                placeholder="+92 300 1234567"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-gray-700">Alternate phone (optional)</label>
+                                            <input
+                                                name="alternatePhone"
+                                                value={formData.alternatePhone}
+                                                onChange={handleInputChange}
+                                                className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                placeholder="+92 300 1234567"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-gray-700">Create password <span className="text-red-500">*</span></label>
+                                            <input
+                                                name="password"
+                                                type="password"
+                                                required
+                                                value={formData.password}
+                                                onChange={handleInputChange}
+                                                className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                placeholder="Minimum 8 characters"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-gray-700">Confirm password <span className="text-red-500">*</span></label>
+                                            <input
+                                                name="confirmPassword"
+                                                type="password"
+                                                required
+                                                value={formData.confirmPassword}
+                                                onChange={handleInputChange}
+                                                className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                placeholder="Confirm password"
+                                            />
+                                        </div>
+                                        <div className="space-y-2 sm:col-span-2">
+                                            <label className="text-sm font-semibold text-gray-700">Hotel/Business name (optional)</label>
+                                            <input
+                                                name="HostelName"
+                                                value={formData.HostelName}
+                                                onChange={handleInputChange}
+                                                className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                placeholder="Your business name"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-gray-700">Tax ID/GST (optional)</label>
+                                            <input
+                                                name="taxId"
+                                                value={formData.taxId}
+                                                onChange={handleInputChange}
+                                                className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                placeholder="Your tax ID"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-semibold text-gray-700">Registration number (optional)</label>
+                                            <input
+                                                name="registrationNumber"
+                                                value={formData.registrationNumber}
+                                                onChange={handleInputChange}
+                                                className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                placeholder="Your registration number"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end pt-8 mt-8 border-t border-gray-200">
+                                        <button
+                                            type="button"
+                                            onClick={handleNext}
+                                            className="inline-flex items-center rounded-full bg-primary-600 text-black px-8 py-3 text-sm font-semibold hover:bg-primary-700 transition-colors shadow-md"
+                                        >
+                                            Next →
+                                        </button>
+                                    </div>
+                                </section>
+                            </div>
+                            )}
+
+                            {/* Step 2: Hostel Information */}
+                            {currentStep === 2 && (
+                                <div className="max-w-4xl mx-auto">
+                                    <section className="space-y-6 rounded-[32px] border border-gray-100 bg-gray-50 p-8 shadow-[0_35px_70px_-70px_rgba(15,23,42,0.4)]">
+                                        <h3 className="text-2xl font-semibold text-gray-900">Hotel Information <span className="text-red-500">*</span></h3>
+                                        <div className="grid gap-5 sm:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-gray-700">Hotel name</label>
+                                                <input
+                                                    name="hostelName"
+                                                    required
+                                                    value={formData.hostelName}
+                                                    onChange={handleInputChange}
+                                                    className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                    placeholder="Hotling Grand Islamabad"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-gray-700">City</label>
+                                                <input
+                                                    name="hostelCity"
+                                                    required
+                                                    value={formData.hostelCity}
+                                                    onChange={handleInputChange}
+                                                    className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                    placeholder="Islamabad"
+                                                />
+                                            </div>
+                                            <div className="space-y-2 sm:col-span-2">
+                                                <label className="text-sm font-semibold text-gray-700">Full address</label>
+                                                <input
+                                                    name="hostelAddress"
+                                                    required
+                                                    value={formData.hostelAddress}
+                                                    onChange={handleInputChange}
+                                                    className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                    placeholder="Plot 21, Blue Area, Islamabad"
+                                                />
+                                            </div>
+                                            <div className="space-y-2 sm:col-span-2">
+                                                <label className="text-sm font-semibold text-gray-700">Google Maps link (optional)</label>
+                                                <input
+                                                    name="hostelMap"
+                                                    value={formData.hostelMap}
+                                                    onChange={handleInputChange}
+                                                    className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                    placeholder="https://maps.google.com/..."
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-gray-700">Hotel type</label>
+                                                <select
+                                                    name="hostelType"
+                                                    value={formData.hostelType}
+                                                    onChange={handleInputChange}
+                                                    className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                >
+                                                    <option>Luxury</option>
+                                                    <option>Business</option>
+                                                    <option>Budget</option>
+                                                    <option>Guest House</option>
+                                                    <option>Resort</option>
+                                                    <option>Boutique</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-gray-700">Number of rooms</label>
+                                                <input
+                                                    name="roomCount"
+                                                    type="number"
+                                                    min={1}
+                                                    required
+                                                    value={formData.roomCount}
+                                                    onChange={handleInputChange}
+                                                    className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                    placeholder="65"
+                                                />
+                                            </div>
+                                            <div className="space-y-2 sm:col-span-2">
+                                                <label className="text-sm font-semibold text-gray-700">Amenities (optional)</label>
+                                                <textarea
+                                                    name="amenities"
+                                                    rows={3}
+                                                    value={formData.amenities}
+                                                    onChange={handleInputChange}
+                                                    className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                    placeholder="Free WiFi, Rooftop pool, Airport shuttle, Private parking..."
+                                                />
+                                            </div>
+                                            <div className="space-y-2 sm:col-span-2">
+                                                <label className="text-sm font-semibold text-gray-700">Upload hotel photos (optional)</label>
+                                                <input
+                                                    name="photos"
+                                                    type="file"
+                                                    multiple
+                                                    accept="image/*"
+                                                    onChange={handleFileChange}
+                                                    className="w-full rounded-xl border border-dashed border-gray-300 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                />
+                                                <p className="text-xs text-gray-500">First photo will be used as profile photo</p>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-gray-700">Starting price per night (PKR)</label>
+                                                <input
+                                                    name="startingPrice"
+                                                    type="number"
+                                                    min={0}
+                                                    required
+                                                    value={formData.startingPrice}
+                                                    onChange={handleInputChange}
+                                                    className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                    placeholder="8500"
+                                                />
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <div className="space-y-4 mt-10">
+                                        <label className="inline-flex items-start gap-3 text-sm text-gray-600">
+                                            <input
+                                                type="checkbox"
+                                                name="termsAgreed"
+                                                required
+                                                checked={formData.termsAgreed}
+                                                onChange={handleInputChange}
+                                                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                            />
+                                            <span>
+                                                I confirm that all details are accurate and I agree to the{' '}
+                                                <a href="/terms" className="text-primary-600 underline hover:text-primary-700">
+                                                    Terms &amp; Conditions
+                                                </a>
+                                                .
+                                            </span>
+                                        </label>
+                                        <div className="flex gap-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => setCurrentStep(1)}
+                                                className="inline-flex items-center rounded-full bg-gray-200 text-gray-700 px-8 py-3 text-sm font-semibold hover:bg-gray-300 transition-colors"
+                                            >
+                                                ← Back
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={isSubmitting}
+                                                className="inline-flex items-center rounded-full bg-blue-100 text-black px-8 py-3 text-sm font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {isSubmitting ? 'Registering...' : 'Register my hotel'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </form>
                     </div>
                 </section>

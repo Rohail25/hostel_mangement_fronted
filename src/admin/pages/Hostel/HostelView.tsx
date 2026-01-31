@@ -11,17 +11,22 @@ import {
   BriefcaseIcon,
   BuildingStorefrontIcon,
   BeakerIcon,
+  PencilIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import hostelsData from '../../mock/hostels.json';
 import tenantsData from '../../mock/tenants.json';
 import employeesData from '../../mock/employees.json';
 import vendorsData from '../../mock/vendors.json';
 import * as messService from '../../services/mess.service';
+import * as messApiService from '../../services/mess-api.service';
 import { Tabs } from '../../components/Tabs';
 import { ArchitectureDiagram } from '../../components/ArchitectureDiagram';
 import { AddRoomForm } from '../../components/AddRoomForm';
 import { AddBlockForm } from '../../components/AddBlockForm';
+import { ArrangeForm } from '../../components/ArrangeForm';
 import { MessManagement } from '../../components/MessManagement';
+import { EditAllocationModal } from '../../components/EditAllocationModal';
 import { Button } from '../../components/Button';
 import { Toast } from '../../components/Toast';
 import { api } from '../../../services/apiClient';
@@ -41,13 +46,19 @@ const HostelView: React.FC = () => {
   const [architectureData, setArchitectureData] =
     useState<ArchitectureData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'details' | 'arrangement' | 'architecture' | 'mess'>(
+  const [activeTab, setActiveTab] = useState<'details' | 'hostelArrangement' | 'arrangement' | 'architecture' | 'mess'>(
     'details'
   );
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
   const [isAddBlockOpen, setIsAddBlockOpen] = useState(false);
+  const [isArrangeOpen, setIsArrangeOpen] = useState(false);
+  const [isEditAllocationOpen, setIsEditAllocationOpen] = useState(false);
+  const [editingBed, setEditingBed] = useState<any>(null);
   const [floors, setFloors] = useState<any[]>([]);
   const [rooms, setRooms] = useState<any[]>([]);
+  const [beds, setBeds] = useState<any[]>([]);
+  const [bedsLoading, setBedsLoading] = useState(false);
+  const [messStats, setMessStats] = useState<{totalMess: number; totalPrice: number; averagePrice: number}>({totalMess: 0, totalPrice: 0, averagePrice: 0});
   const [toast, setToast] = useState<{
     open: boolean;
     type: ToastType;
@@ -67,7 +78,7 @@ const HostelView: React.FC = () => {
 
     const hostelId = hostel.id;
     
-    // Count mess entries
+    // Count mess entries - will be updated via API
     const messEntries = messService.getMessEntriesByHostel(hostelId);
     const totalMess = messEntries.length;
 
@@ -120,6 +131,43 @@ const HostelView: React.FC = () => {
       const hostelResponse = await api.get(API_ROUTES.HOSTEL.BY_ID(hostelId));
       if (hostelResponse.success && hostelResponse.data) {
         const hostelData = hostelResponse.data;
+        
+        // Parse JSON fields for type and category
+        let categoryValue = '';
+        let typeValue = '';
+        
+        // Handle category - may be stored as JSON string, array, or direct value
+        if (hostelData.category) {
+          if (typeof hostelData.category === 'string') {
+            try {
+              const parsed = JSON.parse(hostelData.category);
+              categoryValue = Array.isArray(parsed) ? parsed[0] : parsed;
+            } catch {
+              categoryValue = hostelData.category;
+            }
+          } else if (Array.isArray(hostelData.category)) {
+            categoryValue = hostelData.category[0] || '';
+          } else {
+            categoryValue = hostelData.category || '';
+          }
+        }
+        
+        // Handle type - may be stored as JSON string, array, or direct value
+        if (hostelData.type) {
+          if (typeof hostelData.type === 'string') {
+            try {
+              const parsed = JSON.parse(hostelData.type);
+              typeValue = Array.isArray(parsed) ? parsed[0] : parsed;
+            } catch {
+              typeValue = hostelData.type;
+            }
+          } else if (Array.isArray(hostelData.type)) {
+            typeValue = hostelData.type[0] || '';
+          } else {
+            typeValue = hostelData.type || '';
+          }
+        }
+        
         // Map backend response to frontend Hostel type
         const mappedHostel: Hostel = {
           id: String(hostelData.id),
@@ -130,12 +178,25 @@ const HostelView: React.FC = () => {
           managerName: hostelData.manager?.username || hostelData.manager?.name || 'N/A',
           managerPhone: hostelData.contactInfo?.phone || 'N/A',
           notes: hostelData.description,
+          category: categoryValue,
+          type: typeValue,
         };
         setHostel(mappedHostel);
       }
       
       // Load architecture data
       await loadArchitectureData(hostelId);
+      
+      // Load beds with tenant data
+      await loadBedsWithTenants(hostelId);
+      
+      // Load mess stats from API
+      try {
+        const stats = await messApiService.getMessStatsAPI(hostelId);
+        setMessStats(stats);
+      } catch (error) {
+        console.error('Error loading mess stats:', error);
+      }
       
     } catch (error: any) {
       console.error('Error loading hostel:', error);
@@ -146,6 +207,98 @@ const HostelView: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBedsWithTenants = async (hostelId: number) => {
+    try {
+      setBedsLoading(true);
+      // Fetch all beds for this hostel through rooms
+      const bedsData: any[] = [];
+      
+      // Get all rooms for this hostel
+      const roomsResponse = await api.get(API_ROUTES.ROOM.BY_HOSTEL(hostelId));
+      const roomsData = roomsResponse.success && roomsResponse.data
+        ? (Array.isArray(roomsResponse.data) ? roomsResponse.data : roomsResponse.data.items || [])
+        : [];
+      
+      // Fetch beds for each room with tenant information
+      for (const room of roomsData) {
+        try {
+          const bedsResponse = await api.get(API_ROUTES.BED.BEDS_BY_ROOM(room.id));
+          if (bedsResponse.success && bedsResponse.data) {
+            const roomBeds = Array.isArray(bedsResponse.data) ? bedsResponse.data : bedsResponse.data.items || [];
+            
+            // For each bed, try to get tenant information if occupied
+            for (const bed of roomBeds) {
+              let tenantInfo = null;
+              let leaseInfo = null;
+              
+              // Use currentTenant from bed response (User object)
+              if (bed.currentTenant) {
+                tenantInfo = {
+                  name: bed.currentTenant.username || bed.currentTenant.email || 'Unknown',
+                  id: bed.currentTenantId,
+                };
+              }
+              
+              // Try to get allocation/tenant details if currentTenantId exists
+              if (bed.currentTenantId) {
+                try {
+                  // Get active allocation for this bed/user
+                  const allocationResponse = await api.get(`/admin/allocations?userId=${bed.currentTenantId}&status=active`);
+                  if (allocationResponse.success && allocationResponse.data) {
+                    const allocations = Array.isArray(allocationResponse.data) 
+                      ? allocationResponse.data 
+                      : allocationResponse.data.items || [];
+                    const activeAllocation = allocations.find((a: any) => a.bedId === bed.id);
+                    
+                    if (activeAllocation) {
+                      // Get tenant details from allocation
+                      if (activeAllocation.tenantId) {
+                        const tenantResponse = await api.get(`/admin/tenants/${activeAllocation.tenantId}`);
+                        if (tenantResponse.success && tenantResponse.data) {
+                          tenantInfo = {
+                            name: tenantResponse.data.name || tenantInfo?.name,
+                            id: tenantResponse.data.id,
+                          };
+                          leaseInfo = {
+                            startDate: tenantResponse.data.leaseStart || tenantResponse.data.lease?.startDate,
+                            endDate: tenantResponse.data.leaseEnd || tenantResponse.data.lease?.endDate,
+                            rent: tenantResponse.data.monthlyRent || tenantResponse.data.lease?.monthlyRent,
+                          };
+                        }
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error(`Error loading tenant details for bed ${bed.id}:`, err);
+                }
+              }
+              
+              bedsData.push({
+                ...bed,
+                roomId: room.id,
+                roomNumber: room.roomNumber,
+                floorId: room.floorId,
+                currentTenant: tenantInfo || bed.currentTenant,
+                tenantName: tenantInfo?.name || bed.currentTenant?.username || bed.currentTenant?.email,
+                leaseStartDate: leaseInfo?.startDate,
+                leaseEndDate: leaseInfo?.endDate,
+                rent: leaseInfo?.rent,
+              });
+            }
+          }
+        } catch (err) {
+          console.error(`Error loading beds for room ${room.id}:`, err);
+        }
+      }
+      
+      setBeds(bedsData);
+    } catch (error: any) {
+      console.error('Error loading beds:', error);
+    } finally {
+      setBedsLoading(false);
     }
   };
 
@@ -379,6 +532,10 @@ const HostelView: React.FC = () => {
       label: 'Details',
     },
     {
+      id: 'hostelArrangement',
+      label: 'Hostel Arrangement',
+    },
+    {
       id: 'mess',
       label: 'Mess',
     },
@@ -408,29 +565,14 @@ const HostelView: React.FC = () => {
         </div>
         <div className="flex gap-3">
           {activeTab === 'arrangement' && (
-            <>
-              <Button
-                variant="primary"
-                onClick={() => setIsAddBlockOpen(true)}
-                icon={PlusIcon}
-              >
-                Add Block
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => setIsAddRoomOpen(true)}
-                icon={PlusIcon}
-              >
-                Add Room
-              </Button>
-            </>
+            <Button
+              variant="primary"
+              onClick={() => setIsArrangeOpen(true)}
+              icon={PlusIcon}
+            >
+              Arrange
+            </Button>
           )}
-          <Button
-            variant="outline"
-            onClick={() => navigate(ROUTES.HOSTEL_EDIT(hostel.id))}
-          >
-            Edit Hostel
-          </Button>
         </div>
       </div>
 
@@ -438,7 +580,7 @@ const HostelView: React.FC = () => {
       <Tabs
         tabs={tabs}
         activeTab={activeTab}
-        onChange={(tab) => setActiveTab(tab as 'details' | 'arrangement' | 'architecture' | 'mess')}
+        onChange={(tab) => setActiveTab(tab as 'details' | 'hostelArrangement' | 'arrangement' | 'architecture' | 'mess')}
       />
 
       {/* Tab Content */}
@@ -531,6 +673,39 @@ const HostelView: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {/* Category */}
+            {hostel.category && (
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-cyan-100 rounded-lg">
+                  <BuildingOfficeIcon className="w-6 h-6 text-cyan-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600 font-medium">Category</p>
+                  <p className="text-lg font-semibold text-slate-900 mt-1">
+                    {hostel.category === 'home2' ? 'Second Home' : 
+                     hostel.category === 'luxury' ? 'Hotel Botek' : 
+                     hostel.category === 'back_pack' ? 'Back Pack' : 
+                     hostel.category}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Type */}
+            {hostel.type && (
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-teal-100 rounded-lg">
+                  <BuildingOfficeIcon className="w-6 h-6 text-teal-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600 font-medium">Type</p>
+                  <p className="text-lg font-semibold text-slate-900 mt-1 capitalize">
+                    {hostel.type}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Stats */}
@@ -585,9 +760,12 @@ const HostelView: React.FC = () => {
                   <p className="text-sm text-amber-600 font-medium">Total Mess</p>
                 </div>
                 <p className="text-2xl font-bold text-amber-900">
-                  {additionalStats.totalMess}
+                  {messStats.totalMess}
                 </p>
                 <p className="text-xs text-amber-600 mt-1">Entries</p>
+                {messStats.totalPrice > 0 && (
+                  <p className="text-xs text-amber-600 mt-2">Total: ${messStats.totalPrice.toFixed(2)}</p>
+                )}
               </div>
 
               {/* Total Vendors */}
@@ -646,6 +824,139 @@ const HostelView: React.FC = () => {
         </motion.div>
       )}
 
+      {activeTab === 'hostelArrangement' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8"
+        >
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Hostel Arrangement</h2>
+            <p className="text-slate-600">View and manage all rooms, beds, and tenant allocations</p>
+          </div>
+
+          {bedsLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-slate-500">Loading beds and tenant data...</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Block</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Room</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Bed</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Tenant Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Lease Start</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Lease End</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Rent</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-200">
+                  {beds.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-6 py-12 text-center text-slate-500">
+                        No beds found. Use the "Arrange" button to add blocks, rooms, and beds.
+                      </td>
+                    </tr>
+                  ) : (
+                    beds.map((bed: any) => {
+                      const floor = floors.find((f: any) => f.id === bed.floorId);
+                      const room = rooms.find((r: any) => r.id === bed.roomId);
+                      const isOccupied = bed.status === 'occupied' && bed.currentTenant;
+                      
+                      return (
+                        <tr key={bed.id} className={isOccupied ? 'bg-blue-50' : ''}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                            {floor ? `Block ${floor.floorNumber}` : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {room ? `Room ${room.roomNumber}` : bed.roomNumber || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {bed.bedNumber || bed.number || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              isOccupied 
+                                ? 'bg-red-100 text-red-800' 
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {isOccupied ? 'Occupied' : 'Available'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {bed.currentTenant?.name || bed.tenantName || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {bed.leaseStartDate ? new Date(bed.leaseStartDate).toLocaleDateString() : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {bed.leaseEndDate ? new Date(bed.leaseEndDate).toLocaleDateString() : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {bed.rent ? `$${bed.rent}` : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  // TODO: Open edit allocation modal
+                                  setToast({
+                                    open: true,
+                                    type: 'info',
+                                    message: 'Edit allocation feature coming soon',
+                                  });
+                                }}
+                                className="text-blue-600 hover:text-blue-900"
+                                title="Edit Allocation"
+                              >
+                                <PencilIcon className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm('Are you sure you want to delete this bed?')) {
+                                    try {
+                                      const response = await api.delete(API_ROUTES.BED.DELETE(bed.id));
+                                      if (response.success) {
+                                        setToast({
+                                          open: true,
+                                          type: 'success',
+                                          message: 'Bed deleted successfully',
+                                        });
+                                        await loadBedsWithTenants(Number(id));
+                                      }
+                                    } catch (error: any) {
+                                      setToast({
+                                        open: true,
+                                        type: 'error',
+                                        message: error.message || 'Failed to delete bed',
+                                      });
+                                    }
+                                  }
+                                }}
+                                className="text-red-600 hover:text-red-900"
+                                title="Delete Bed"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </motion.div>
+      )}
+
       {activeTab === 'arrangement' && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -653,121 +964,132 @@ const HostelView: React.FC = () => {
           className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8"
         >
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">Block, Room & Seat Arrangement</h2>
-            <p className="text-slate-600">Manage blocks (floors), rooms, and seat allocations</p>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Room & Bed Arrangement</h2>
+            <p className="text-slate-600">View all rooms, beds, and tenant allocations in table format</p>
           </div>
 
-          {/* Blocks (renamed from Floors) */}
-          <div className="space-y-6">
-            {architectureData.floors.map((floor) => (
-              <div
-                key={floor.floorNumber}
-                className="border border-slate-200 rounded-xl p-6 bg-slate-50"
-              >
-                {/* Block Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                      {floor.floorNumber}
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">
-                        Block {floor.floorNumber}
-                      </h3>
-                      <p className="text-sm text-slate-600">
-                        {floor.rooms.length} Rooms • {floor.rooms.reduce((sum, r) => sum + r.totalSeats, 0)} Seats
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-600">
-                      Occupied: {floor.rooms.reduce((sum, r) => sum + r.seats.filter(s => s.isOccupied).length, 0)} / {floor.rooms.reduce((sum, r) => sum + r.totalSeats, 0)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Rooms in this Block */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                  {floor.rooms.map((room) => (
-                    <div
-                      key={room.id}
-                      className="bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-slate-900">
-                          Room {room.roomNumber}
-                        </h4>
-                        <span className="text-xs text-slate-500">
-                          {room.seats.filter(s => s.isOccupied).length}/{room.totalSeats} occupied
-                        </span>
-                      </div>
-
-                      {/* Seats in this Room */}
-                      <div className="grid grid-cols-2 gap-2">
-                        {room.seats.map((seat) => (
-                          <div
-                            key={seat.id}
-                            className={`p-2 rounded border text-sm ${
-                              seat.isOccupied
-                                ? 'bg-red-50 border-red-200 text-red-700'
-                                : 'bg-green-50 border-green-200 text-green-700'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium">Seat {seat.seatNumber}</span>
-                              {seat.isOccupied ? (
-                                <span className="text-xs">Occupied</span>
-                              ) : (
-                                <span className="text-xs">Available</span>
-                              )}
-                            </div>
-                            {seat.isOccupied && seat.tenantName && (
-                              <p className="text-xs mt-1 truncate" title={seat.tenantName}>
-                                {seat.tenantName}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Summary Stats */}
-          <div className="mt-8 pt-8 border-t border-slate-200">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">
-              Arrangement Summary
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-blue-50 p-4 rounded-xl">
-                <p className="text-sm text-blue-600 font-medium">Total Blocks</p>
-                <p className="text-2xl font-bold text-blue-900 mt-1">
-                  {architectureData.floors.length}
-                </p>
-              </div>
-              <div className="bg-purple-50 p-4 rounded-xl">
-                <p className="text-sm text-purple-600 font-medium">Total Rooms</p>
-                <p className="text-2xl font-bold text-purple-900 mt-1">
-                  {architectureData.totalRooms}
-                </p>
-              </div>
-              <div className="bg-green-50 p-4 rounded-xl">
-                <p className="text-sm text-green-600 font-medium">Available Seats</p>
-                <p className="text-2xl font-bold text-green-900 mt-1">
-                  {architectureData.availableSeats}
-                </p>
-              </div>
-              <div className="bg-red-50 p-4 rounded-xl">
-                <p className="text-sm text-red-600 font-medium">Occupied Seats</p>
-                <p className="text-2xl font-bold text-red-900 mt-1">
-                  {architectureData.occupiedSeats}
-                </p>
-              </div>
+          {bedsLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-slate-500">Loading beds and tenant data...</p>
             </div>
-          </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Block</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Room</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Bed</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Tenant Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Lease Start</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Lease End</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Rent</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-200">
+                  {beds.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-6 py-12 text-center text-slate-500">
+                        No beds found. Use the "Arrange" button to add blocks, rooms, and beds.
+                      </td>
+                    </tr>
+                  ) : (
+                    beds.map((bed: any) => {
+                      const floor = floors.find((f: any) => f.id === bed.floorId);
+                      const room = rooms.find((r: any) => r.id === bed.roomId);
+                      const isOccupied = bed.status === 'occupied' && bed.currentTenant;
+                      
+                      return (
+                        <tr key={bed.id} className={isOccupied ? 'bg-blue-50' : ''}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                            {floor ? `Block ${floor.floorNumber}` : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {room ? `Room ${room.roomNumber}` : bed.roomNumber || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {bed.bedNumber || bed.number || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              isOccupied 
+                                ? 'bg-red-100 text-red-800' 
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {isOccupied ? 'Occupied' : 'Available'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {bed.currentTenant?.name || bed.tenantName || '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {bed.leaseStartDate ? new Date(bed.leaseStartDate).toLocaleDateString() : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {bed.leaseEndDate ? new Date(bed.leaseEndDate).toLocaleDateString() : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                            {bed.rent ? `$${bed.rent}` : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingBed({
+                                    id: bed.id,
+                                    floorId: bed.floorId,
+                                    roomId: bed.roomId,
+                                    bedNumber: bed.bedNumber || bed.number,
+                                    tenantName: bed.currentTenant?.name || bed.tenantName,
+                                  });
+                                  setIsEditAllocationOpen(true);
+                                }}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                                title="Edit Allocation"
+                              >
+                                <PencilIcon className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm('Are you sure you want to delete this bed?')) {
+                                    try {
+                                      const response = await api.delete(API_ROUTES.BED.DELETE(bed.id));
+                                      if (response.success) {
+                                        setToast({
+                                          open: true,
+                                          type: 'success',
+                                          message: 'Bed deleted successfully',
+                                        });
+                                        await loadBedsWithTenants(Number(id));
+                                        await loadArchitectureData(Number(id));
+                                      }
+                                    } catch (error: any) {
+                                      setToast({
+                                        open: true,
+                                        type: 'error',
+                                        message: error.message || 'Failed to delete bed',
+                                      });
+                                    }
+                                  }
+                                }}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                title="Delete Bed"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -902,6 +1224,17 @@ const HostelView: React.FC = () => {
         </motion.div>
       )}
 
+      {/* Arrange Form Modal */}
+      <ArrangeForm
+        isOpen={isArrangeOpen}
+        onClose={() => setIsArrangeOpen(false)}
+        hostelId={Number(id || hostel.id)}
+        onSuccess={() => {
+          loadArchitectureData(Number(id || hostel.id));
+          loadBedsWithTenants(Number(id || hostel.id));
+        }}
+      />
+
       {/* Add Block Modal */}
       <AddBlockForm
         isOpen={isAddBlockOpen}
@@ -919,6 +1252,34 @@ const HostelView: React.FC = () => {
         floors={floors}
         onSubmit={handleAddRoom}
       />
+
+      {/* Edit Allocation Modal */}
+      {editingBed && (
+        <EditAllocationModal
+          isOpen={isEditAllocationOpen}
+          onClose={() => {
+            setIsEditAllocationOpen(false);
+            setEditingBed(null);
+          }}
+          bedId={editingBed.id}
+          currentAllocation={{
+            floorId: editingBed.floorId,
+            roomId: editingBed.roomId,
+            bedNumber: editingBed.bedNumber,
+            tenantName: editingBed.tenantName,
+          }}
+          hostelId={Number(id || hostel.id)}
+          onSuccess={async () => {
+            setToast({
+              open: true,
+              type: 'success',
+              message: 'Bed allocation updated successfully',
+            });
+            await loadBedsWithTenants(Number(id));
+            await loadArchitectureData(Number(id));
+          }}
+        />
+      )}
 
       {/* Toast */}
       <Toast

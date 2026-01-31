@@ -111,11 +111,13 @@ const VendorList: React.FC<VendorListProps> = ({
   
   // Determine active section from route
   // If accessed from People section (/people/vendors), show list
-  // If accessed from main sidebar (/vendor/management), show only management
+  // If accessed from Vendor Management main sidebar (/vendor/management), show management tab
+  // If accessed from /vendor/list, show vendor list tab
   const getActiveSection = (): 'list' | 'management' => {
     if (location.pathname.includes('/people/vendors')) return 'list';
     if (location.pathname.includes('/vendor/management')) return 'management';
-    return 'management'; // Default to management
+    if (location.pathname.includes('/vendor/list')) return 'list';
+    return 'management'; // Default to management when on /vendor
   };
   
   const activeSection = getActiveSection();
@@ -149,6 +151,8 @@ const VendorList: React.FC<VendorListProps> = ({
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [vendorsLoading, setVendorsLoading] = useState<boolean>(false);
   const [vendorsError, setVendorsError] = useState<string | null>(null);
+  const [vendorCategories, setVendorCategories] = useState<Array<{ id: number; name: string; description: string | null }>>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState<boolean>(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isAddVendorModalOpen, setIsAddVendorModalOpen] = useState(false);
   const [isViewVendorModalOpen, setIsViewVendorModalOpen] = useState(false);
@@ -159,6 +163,8 @@ const VendorList: React.FC<VendorListProps> = ({
     serviceId: '',
     vendorId: '',
     hostelId: '',
+    status: 'active',
+    attachment: null as File | null,
   });
   const [activeTab, setActiveTab] = useState<'vendorInfo' | 'vendorService'>('vendorInfo');
   const [vendorForm, setVendorForm] = useState({
@@ -166,14 +172,15 @@ const VendorList: React.FC<VendorListProps> = ({
     email: '',
     phone: '',
     companyName: '',
-    country: '',
-    city: '',
-    street: '',
+    address: '',
+    location: '',
+    attachments: [] as any[],
     category: '',
-    specialties: [{ id: '1', name: '' }],
+    specialties: [{ id: '1', name: '', description: '' }],
     rating: '4.5',
     hostelId: '',
     paymentTerms: 'prepaid',
+    status: 'active',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -199,6 +206,26 @@ const VendorList: React.FC<VendorListProps> = ({
     };
 
     fetchHostels();
+  }, []);
+
+  // Fetch vendor categories from API on component mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const response = await api.get(API_ROUTES.VENDOR_CATEGORY.LIST);
+        if (response.success && response.data) {
+          setVendorCategories(Array.isArray(response.data) ? response.data : []);
+        }
+      } catch (err: any) {
+        console.error('Error fetching vendor categories:', err);
+        setVendorCategories([]);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+
+    fetchCategories();
   }, []);
 
   // Get hostel options
@@ -246,9 +273,70 @@ const VendorList: React.FC<VendorListProps> = ({
     }
   }, []);
 
+  // Fetch vendors by hostelId when hostel is selected (for list section)
   useEffect(() => {
-    fetchVendorsByHostel(effectiveHostelId);
-  }, [effectiveHostelId, fetchVendorsByHostel]);
+    if (effectiveHostelId && activeSection === 'list') {
+      fetchVendorsByHostel(effectiveHostelId);
+    }
+  }, [effectiveHostelId, fetchVendorsByHostel, activeSection]);
+
+  // Load all vendor service assignments for both management and list sections
+  const [allAssignments, setAllAssignments] = useState<any[]>([]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
+  const [isEditAssignmentModalOpen, setIsEditAssignmentModalOpen] = useState(false);
+
+  const loadAssignments = async () => {
+    try {
+      setAssignmentsLoading(true);
+      const response = await api.get('/admin/vendor/management');
+      if (response.success && response.data) {
+        const assignments = Array.isArray(response.data) 
+          ? response.data 
+          : (response.data.items || response.data.assignments || []);
+        setAllAssignments(assignments);
+      }
+    } catch (err: any) {
+      console.error('Error loading vendor assignments:', err);
+      setAllAssignments([]);
+    } finally {
+      setAssignmentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === 'management' || activeSection === 'list') {
+      loadAssignments();
+    }
+  }, [activeSection, selectedHostelIdForManagement]);
+
+  // Load all vendors when needed
+  useEffect(() => {
+    if (activeSection === 'list') {
+      const loadAllVendors = async () => {
+        try {
+          setVendorsLoading(true);
+          setVendorsError(null);
+          const response = await api.get(API_ROUTES.VENDOR.LIST);
+          if (response.success && response.data) {
+            const vendorsData = Array.isArray(response.data) 
+              ? response.data 
+              : (response.data.items || []);
+            setVendors(vendorsData);
+          } else {
+            throw new Error(response.message || 'Failed to fetch vendors');
+          }
+        } catch (error: any) {
+          console.error('Error loading all vendors:', error);
+          setVendorsError(error.message || 'Failed to load vendors');
+          setVendors([]);
+        } finally {
+          setVendorsLoading(false);
+        }
+      };
+      loadAllVendors();
+    }
+  }, [activeSection]);
 
   // Filter vendors by selected hostel (for Vendor List tab) - Now using API data
   const filteredVendors = useMemo(() => {
@@ -340,27 +428,26 @@ const VendorList: React.FC<VendorListProps> = ({
         setSelectedVendor(vendorData);
         
         // Populate form with vendor data
-        const address = typeof vendorData.address === 'object' ? vendorData.address : 
-                       (vendorData.location ? { city: '', country: '' } : {});
-        
         setVendorForm({
           name: vendorData.name || '',
           email: vendorData.contact?.email || vendorData.email || '',
           phone: vendorData.contact?.phone || vendorData.phone || '',
           companyName: vendorData.companyName || '',
-          country: address.country || '',
-          city: address.city || '',
-          street: address.street || address.line1 || '',
+          address: vendorData.address || '',
+          location: vendorData.location || '',
+          attachments: vendorData.attachments || [],
           category: vendorData.category || '',
           specialties: vendorData.services && vendorData.services.length > 0
             ? vendorData.services.map((s: any, idx: number) => ({
                 id: String(idx + 1),
                 name: s.name || s.specialty || '',
+                description: s.description || '',
               }))
-            : [{ id: '1', name: vendorData.specialty || '' }],
+            : [{ id: '1', name: vendorData.specialty || '', description: '' }],
           rating: vendorData.rating?.average ? String(vendorData.rating.average) : '4.5',
           hostelId: vendorData.hostelId ? String(vendorData.hostelId) : '',
           paymentTerms: vendorData.paymentTerms || 'prepaid',
+          status: vendorData.status || 'active',
         });
         
         setIsEditVendorModalOpen(true);
@@ -388,37 +475,56 @@ const VendorList: React.FC<VendorListProps> = ({
     setIsDeleteConfirmOpen(true);
   };
 
-  // Confirm delete vendor
+  // Confirm delete vendor or assignment
   const confirmDeleteVendor = async () => {
     if (!selectedVendor) return;
 
     try {
       setIsDeleting(true);
-      const response = await api.delete(API_ROUTES.VENDOR.DELETE(selectedVendor.id));
       
-      if (response.success) {
-        setToast({
-          open: true,
-          type: 'success',
-          message: `Vendor "${selectedVendor.name}" deleted successfully!`,
-        });
-        
-        // Refresh vendor list
-        if (selectedHostelId) {
-          fetchVendorsByHostel(selectedHostelId);
+      // Check if this is an assignment deletion (has special name format)
+      const isAssignment = selectedVendor.name?.includes(' - ');
+      
+      if (isAssignment) {
+        // Delete assignment
+        const response = await api.delete(`/admin/vendor/management/${selectedVendor.id}`);
+        if (response.success) {
+          setToast({
+            open: true,
+            type: 'success',
+            message: 'Vendor assignment deleted successfully!',
+          });
+          loadAssignments();
+        } else {
+          throw new Error(response.message || 'Failed to delete assignment');
         }
-        
-        setIsDeleteConfirmOpen(false);
-        setSelectedVendor(null);
       } else {
-        throw new Error(response.message || 'Failed to delete vendor');
+        // Delete vendor
+        const response = await api.delete(API_ROUTES.VENDOR.DELETE(selectedVendor.id));
+        if (response.success) {
+          setToast({
+            open: true,
+            type: 'success',
+            message: `Vendor "${selectedVendor.name}" deleted successfully!`,
+          });
+          
+          // Refresh vendor list
+          if (selectedHostelId) {
+            fetchVendorsByHostel(selectedHostelId);
+          }
+        } else {
+          throw new Error(response.message || 'Failed to delete vendor');
+        }
       }
+      
+      setIsDeleteConfirmOpen(false);
+      setSelectedVendor(null);
     } catch (error: any) {
-      console.error('Error deleting vendor:', error);
+      console.error('Error deleting:', error);
       setToast({
         open: true,
         type: 'error',
-        message: error.message || 'Failed to delete vendor. Please try again.',
+        message: error.message || 'Failed to delete. Please try again.',
       });
     } finally {
       setIsDeleting(false);
@@ -437,8 +543,6 @@ const VendorList: React.FC<VendorListProps> = ({
     if (!vendorForm.email.trim()) errors.push('Email is required');
     if (!vendorForm.phone.trim()) errors.push('Phone is required');
     if (!vendorForm.companyName.trim()) errors.push('Company name is required');
-    if (!vendorForm.country.trim()) errors.push('Country is required');
-    if (!vendorForm.city.trim()) errors.push('City is required');
     if (!vendorForm.category.trim()) errors.push('Category is required');
     if (vendorForm.specialties.length === 0 || vendorForm.specialties.some(s => !s.name.trim())) {
       errors.push('At least one specialty service name is required');
@@ -460,17 +564,19 @@ const VendorList: React.FC<VendorListProps> = ({
       const requestPayload: any = {
         name: vendorForm.name.trim(),
         companyName: vendorForm.companyName.trim(),
+        address: vendorForm.address.trim(),
         email: vendorForm.email.trim(),
         phone: vendorForm.phone.trim(),
         specialty: vendorForm.category.trim(),
-        services: vendorForm.specialties.map(s => s.name.trim()).filter(Boolean),
-        address: {
-          country: vendorForm.country.trim(),
-          city: vendorForm.city.trim(),
-          street: vendorForm.street.trim(),
-        },
+        services: vendorForm.specialties.map(s => ({
+          name: s.name.trim(),
+          description: s.description?.trim() || null,
+        })).filter(s => s.name),
+        location: vendorForm.location.trim() || null,
+        attachments: vendorForm.attachments.length > 0 ? vendorForm.attachments : null,
         paymentTerms: vendorForm.paymentTerms,
         hostelId: Number(vendorForm.hostelId),
+        status: vendorForm.status,
       };
 
       console.log('📡 Updating vendor:', selectedVendor.id, requestPayload);
@@ -492,11 +598,11 @@ const VendorList: React.FC<VendorListProps> = ({
           email: '',
           phone: '',
           companyName: '',
-          country: '',
-          city: '',
-          street: '',
+          address: '',
+          location: '',
+          attachments: [],
           category: '',
-          specialties: [{ id: '1', name: '' }],
+          specialties: [{ id: '1', name: '', description: '' }],
           rating: '4.5',
           hostelId: '',
           paymentTerms: 'prepaid',
@@ -650,54 +756,161 @@ const VendorList: React.FC<VendorListProps> = ({
     },
   ];
 
-  // Get vendor options for assignment
+  // Load all vendors for dropdown (not just from selected hostel)
+  const [allVendorsForDropdown, setAllVendorsForDropdown] = useState<Vendor[]>([]);
+  const [allVendorsLoading, setAllVendorsLoading] = useState(false);
+
+  useEffect(() => {
+    const loadAllVendors = async () => {
+      try {
+        setAllVendorsLoading(true);
+        const response = await api.get(API_ROUTES.VENDOR.LIST);
+        if (response.success && response.data) {
+          const vendorsData = Array.isArray(response.data) 
+            ? response.data 
+            : (response.data.items || response.data.vendors || []);
+          setAllVendorsForDropdown(vendorsData);
+        }
+      } catch (error: any) {
+        console.error('Error loading all vendors:', error);
+        setAllVendorsForDropdown([]);
+      } finally {
+        setAllVendorsLoading(false);
+      }
+    };
+    loadAllVendors();
+  }, []);
+
+  // Get vendor options for assignment - use all vendors, not just from selected hostel
   const vendorOptions = useMemo(() => {
-    // Use actual vendors from state if available, otherwise use mock data
-    const vendorsToUse = vendors.length > 0 ? vendors : (vendorsData as unknown as Vendor[]);
+    const vendorsToUse = allVendorsForDropdown.length > 0 
+      ? allVendorsForDropdown 
+      : (vendors.length > 0 ? vendors : (vendorsData as unknown as Vendor[]));
     return vendorsToUse
       .filter((v) => v.status === 'active' || v.status === 'Active' || v.statusLabel === 'Active')
       .map((v) => ({
         value: String(v.id),
         label: `${v.name}${v.specialty ? ` (${v.specialty})` : ''}`,
       }));
-  }, [vendors]);
+  }, [allVendorsForDropdown, vendors]);
 
-  // Get service options for assignment
-  const serviceOptions = useMemo(() => {
-    const services = servicesData as Service[];
-    return services.map((s) => ({
-      value: String(s.id),
-      label: s.name,
-    }));
+  // Load services from API
+  const [servicesFromAPI, setServicesFromAPI] = useState<Service[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+
+  useEffect(() => {
+    const loadServices = async () => {
+      try {
+        setServicesLoading(true);
+        const response = await api.get('/admin/vendor/management/services');
+        if (response.success && response.data) {
+          let services: any[] = [];
+          if (Array.isArray(response.data)) {
+            services = response.data;
+          } else if (response.data.services && Array.isArray(response.data.services)) {
+            services = response.data.services;
+          } else if (response.data.items && Array.isArray(response.data.items)) {
+            services = response.data.items;
+          }
+          setServicesFromAPI(services);
+        }
+      } catch (error: any) {
+        console.error('Error loading services:', error);
+        setServicesFromAPI([]);
+      } finally {
+        setServicesLoading(false);
+      }
+    };
+    loadServices();
   }, []);
 
+  // Get service options for assignment - use API services, fallback to mock data
+  const serviceOptions = useMemo(() => {
+    const services = servicesFromAPI.length > 0 
+      ? servicesFromAPI 
+      : (servicesData as Service[]);
+    return services
+      .filter((s: any) => s.isActive !== false) // Only show active services
+      .map((s) => ({
+        value: String(s.id),
+        label: s.name,
+      }));
+  }, [servicesFromAPI]);
+
   // Handle vendor assignment
-  const handleAssignVendor = (e: React.FormEvent) => {
+  const handleAssignVendor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assignForm.serviceId || !assignForm.vendorId || !assignForm.hostelId) {
       setToast({
         open: true,
         type: 'error',
-        message: 'Please fill in all fields',
+        message: 'Please fill in all required fields',
       });
       return;
     }
 
-    // In a real app, this would make an API call
-    console.log('Assigning vendor:', assignForm);
-    
-    setToast({
-      open: true,
-      type: 'success',
-      message: 'Vendor assigned to service successfully!',
-    });
+    try {
+      setIsSubmitting(true);
+      
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('serviceId', assignForm.serviceId);
+      formData.append('vendorId', assignForm.vendorId);
+      formData.append('hostelId', assignForm.hostelId);
+      formData.append('isActive', assignForm.status === 'active' ? 'true' : 'false');
+      
+      if (assignForm.attachment) {
+        formData.append('attachment', assignForm.attachment);
+      }
 
-    setIsAssignModalOpen(false);
-    setAssignForm({
-      serviceId: '',
-      vendorId: '',
-      hostelId: '',
-    });
+      const endpoint = editingAssignment 
+        ? `/admin/vendor/management/${editingAssignment.id}`
+        : '/admin/vendor/management/assign';
+      const method = editingAssignment ? 'put' : 'post';
+
+      const response = editingAssignment
+        ? await api.put(endpoint, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          })
+        : await api.post(endpoint, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+
+      if (response.success) {
+        setToast({
+          open: true,
+          type: 'success',
+          message: editingAssignment ? 'Vendor assignment updated successfully!' : 'Vendor assigned successfully!',
+        });
+        setIsAssignModalOpen(false);
+        setIsEditAssignmentModalOpen(false);
+        setEditingAssignment(null);
+        setAssignForm({
+          serviceId: '',
+          vendorId: '',
+          hostelId: '',
+          status: 'active',
+          attachment: null,
+        });
+        // Refresh assignments
+        loadAssignments();
+      } else {
+        throw new Error(response.message || 'Failed to assign vendor');
+      }
+    } catch (error: any) {
+      console.error('Error assigning vendor:', error);
+      setToast({
+        open: true,
+        type: 'error',
+        message: error.message || 'Failed to assign vendor. Please try again.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle add vendor form submission
@@ -710,8 +923,6 @@ const VendorList: React.FC<VendorListProps> = ({
     if (!vendorForm.email.trim()) errors.push('Email is required');
     if (!vendorForm.phone.trim()) errors.push('Phone is required');
     if (!vendorForm.companyName.trim()) errors.push('Company name is required');
-    if (!vendorForm.country.trim()) errors.push('Country is required');
-    if (!vendorForm.city.trim()) errors.push('City is required');
     if (!vendorForm.category.trim()) errors.push('Category is required');
     if (vendorForm.specialties.length === 0 || vendorForm.specialties.some(s => !s.name.trim())) {
       errors.push('At least one specialty service name is required');
@@ -734,16 +945,19 @@ const VendorList: React.FC<VendorListProps> = ({
       const requestPayload: any = {
         name: vendorForm.name.trim(),
         companyName: vendorForm.companyName.trim(),
+        address: vendorForm.address.trim(),
         email: vendorForm.email.trim(),
         phone: vendorForm.phone.trim(),
         specialty: vendorForm.category.trim(), // Using category as specialty
-        services: vendorForm.specialties.map(s => s.name.trim()).filter(Boolean),
-        address: {
-          country: vendorForm.country.trim(),
-          city: vendorForm.city.trim(),
-        },
+        services: vendorForm.specialties.map(s => ({
+          name: s.name.trim(),
+          description: s.description?.trim() || null,
+        })).filter(s => s.name),
+        location: vendorForm.location.trim() || null,
+        attachments: vendorForm.attachments.length > 0 ? vendorForm.attachments : null,
         paymentTerms: vendorForm.paymentTerms,
-      hostelId: Number(vendorForm.hostelId),
+        hostelId: Number(vendorForm.hostelId),
+        status: vendorForm.status,
       };
 
       // Add optional fields only if they have values
@@ -782,6 +996,7 @@ const VendorList: React.FC<VendorListProps> = ({
           rating: '4.5',
           hostelId: '',
           paymentTerms: 'prepaid',
+          status: 'active',
         });
         setActiveTab('vendorInfo');
         
@@ -815,24 +1030,25 @@ const VendorList: React.FC<VendorListProps> = ({
       email: '',
       phone: '',
       companyName: '',
-      country: '',
-      city: '',
-      street: '',
+      address: '',
+      location: '',
+      attachments: [],
       category: '',
-      specialties: [{ id: '1', name: '' }],
+      specialties: [{ id: '1', name: '', description: '' }],
       rating: '4.5',
       hostelId: '',
       paymentTerms: 'prepaid',
+      status: 'active',
     });
     setActiveTab('vendorInfo');
   };
 
   // Handle specialty service changes
-  const handleSpecialtyChange = (id: string, value: string) => {
+  const handleSpecialtyChange = (id: string, field: 'name' | 'description', value: string) => {
     setVendorForm((prev) => ({
       ...prev,
       specialties: prev.specialties.map((s) =>
-        s.id === id ? { ...s, name: value } : s
+        s.id === id ? { ...s, [field]: value } : s
       ),
     }));
   };
@@ -840,7 +1056,7 @@ const VendorList: React.FC<VendorListProps> = ({
   const addSpecialty = () => {
     setVendorForm((prev) => ({
       ...prev,
-      specialties: [...prev.specialties, { id: Date.now().toString(), name: '' }],
+      specialties: [...prev.specialties, { id: Date.now().toString(), name: '', description: '' }],
     }));
   };
 
@@ -851,15 +1067,13 @@ const VendorList: React.FC<VendorListProps> = ({
     }));
   };
 
-  // Get category options from services
+  // Get category options from vendor categories (user-specific)
   const categoryOptions = useMemo(() => {
-    const services = servicesData as Service[];
-    const categories = [...new Set(services.map((s) => s.category))];
     return [
       { value: '', label: 'Select Category' },
-      ...categories.map((cat) => ({ value: cat, label: cat })),
+      ...vendorCategories.map((cat) => ({ value: cat.name, label: cat.name })),
     ];
-  }, []);
+  }, [vendorCategories]);
 
   // Effect to handle body overflow when modal is open
   useEffect(() => {
@@ -981,84 +1195,7 @@ const VendorList: React.FC<VendorListProps> = ({
       <div className="space-y-6">
         {/* Content */}
         <AnimatePresence mode="wait">
-          {activeSection === 'list' ? (
-            <motion.div
-              key="list"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              {/* Warning message if no hostel selected */}
-              {!effectiveHostelId && (
-                <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800">
-                    Please select a hostel to view its vendors.
-                  </p>
-                </div>
-              )}
-
-              {/* Header with Export Button */}
-              {effectiveHostelId && filteredVendors.length > 0 && (
-                <div className="mb-4 flex justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={handleExportPDFList}
-                    icon={ArrowDownTrayIcon}
-                  >
-                    Export PDF
-                  </Button>
-                </div>
-              )}
-
-              {/* Vendor List */}
-              {effectiveHostelId ? (
-                vendorsLoading ? (
-                  <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading vendors...</p>
-                  </div>
-                ) : vendorsError ? (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-700">{vendorsError}</p>
-                    <button
-                      onClick={() => {
-                        // Retry fetch
-                        fetchVendorsByHostel(effectiveHostelId);
-                      }}
-                      className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
-                    >
-                      Try again
-                    </button>
-                  </div>
-                ) : filteredVendors.length === 0 ? (
-                  <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
-                    <BuildingOfficeIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Vendors Found</h3>
-                    <p className="text-gray-600">No vendors are assigned to this hostel.</p>
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                    <VendorTable
-                      vendors={filteredVendors}
-                      onView={(id) => {
-                        const vendor = filteredVendors.find(v => v.id === id);
-                        if (vendor) handleViewVendor(vendor);
-                      }}
-                      onEdit={(id) => {
-                        const vendor = filteredVendors.find(v => v.id === id);
-                        if (vendor) handleEditVendor(vendor);
-                      }}
-                      onDelete={(id, name) => {
-                        const vendor = filteredVendors.find(v => v.id === id);
-                        if (vendor) handleDeleteVendor(vendor);
-                      }}
-                    />
-                  </div>
-                )
-              ) : null}
-            </motion.div>
-          ) : (
+          {activeSection === 'management' ? (
             <motion.div
               key="management"
               initial={{ opacity: 0, y: 20 }}
@@ -1070,8 +1207,8 @@ const VendorList: React.FC<VendorListProps> = ({
               <div className="mb-6">
                 <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">Service Management</h2>
-                    <p className="text-sm text-gray-600 mt-1">Manage which vendors perform which services</p>
+                    <h2 className="text-xl font-semibold text-gray-900">Vendor Management</h2>
+                    <p className="text-sm text-gray-600 mt-1">Manage vendor service assignments</p>
                   </div>
                   <div className="flex items-center gap-3 sm:mt-0 mt-2">
                     {/* Hostel Filter - Right side of heading */}
@@ -1086,57 +1223,241 @@ const VendorList: React.FC<VendorListProps> = ({
                         disabled={hostelsLoading}
                       />
                     </div>
-                    {selectedHostelIdForManagement && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedHostelIdForManagement('')}
-                      >
-                        Clear Filter
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      onClick={handleExportPDFManagement}
-                      icon={ArrowDownTrayIcon}
-                    >
-                      Export PDF
-                    </Button>
                     <Button
                       variant="primary"
-                      onClick={() => setIsAssignModalOpen(true)}
+                      onClick={() => {
+                        setAssignForm({ serviceId: '', vendorId: '', hostelId: '', status: 'active', attachment: null });
+                        setIsAssignModalOpen(true);
+                      }}
                       icon={PlusIcon}
                     >
-                      Assign Vendor to Service
+                      Assign
                     </Button>
                   </div>
                 </div>
               </div>
 
-              {/* Services Table - Table format with all details */}
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                <DataTable
-                  columns={vendorManagementColumns}
-                  data={servicesWithVendors.map((service) => ({
-                    ...service,
-                    id: service.id,
-                  }))}
-                  emptyMessage="No services found. Please add services to get started."
-                />
-              </div>
+              {/* Vendor Management Assignments Table */}
+              {assignmentsLoading ? (
+                <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading vendor assignments...</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hostel</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attachment</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {allAssignments
+                          .filter((assignment: any) => 
+                            !selectedHostelIdForManagement || 
+                            String(assignment.hostelId) === selectedHostelIdForManagement
+                          )
+                          .length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                              No vendor assignments found.
+                            </td>
+                          </tr>
+                        ) : (
+                          allAssignments
+                            .filter((assignment: any) => 
+                              !selectedHostelIdForManagement || 
+                              String(assignment.hostelId) === selectedHostelIdForManagement
+                            )
+                            .map((assignment: any) => (
+                              <tr key={assignment.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {assignment.service?.name || assignment.serviceName || 'N/A'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {assignment.vendor?.name || assignment.vendorName || 'N/A'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {assignment.hostel?.name || assignment.hostelName || 'N/A'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <Badge
+                                    variant={assignment.isActive ? 'success' : 'warning'}
+                                  >
+                                    {assignment.isActive ? 'Active' : 'Inactive'}
+                                  </Badge>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {assignment.attachment ? (
+                                    <a
+                                      href={assignment.attachment}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline"
+                                    >
+                                      View
+                                    </a>
+                                  ) : (
+                                    <span className="text-gray-400">No attachment</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setEditingAssignment(assignment);
+                                        setAssignForm({
+                                          serviceId: String(assignment.serviceId),
+                                          vendorId: String(assignment.vendorId),
+                                          hostelId: String(assignment.hostelId),
+                                          attachment: null,
+                                        });
+                                        setIsEditAssignmentModalOpen(true);
+                                      }}
+                                      className="text-blue-600 hover:text-blue-900"
+                                    >
+                                      <PencilIcon className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedVendor({ id: assignment.id, name: `${assignment.vendor?.name || ''} - ${assignment.service?.name || ''}` } as Vendor);
+                                        setIsDeleteConfirmOpen(true);
+                                      }}
+                                      className="text-red-600 hover:text-red-900"
+                                    >
+                                      <TrashIcon className="w-5 h-5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </motion.div>
-          )}
+          ) : activeSection === 'list' ? (
+            <motion.div
+              key="list"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              {/* Header */}
+              <div className="mb-6">
+                <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">Vendor List</h2>
+                    <p className="text-sm text-gray-600 mt-1">View all vendor managements with details and attachments</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Vendor List Table */}
+              {assignmentsLoading ? (
+                <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading vendor managements...</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hostel</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attachments</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {allAssignments.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                              No vendor managements found.
+                            </td>
+                          </tr>
+                        ) : (
+                          allAssignments.map((assignment: any) => (
+                            <tr key={assignment.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {assignment.service?.name || 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {assignment.vendor?.name || 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {assignment.hostel?.name || 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <Badge
+                                  variant={
+                                    assignment.isActive ? 'success' : 'warning'
+                                  }
+                                >
+                                  {assignment.isActive ? 'Active' : 'Inactive'}
+                                </Badge>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {assignment.attachment ? (
+                                  <a
+                                    href={assignment.attachment}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline"
+                                  >
+                                    View Attachment
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-400">No attachment</span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <button
+                                  onClick={() => {
+                                    const vendor = vendors.find(v => v.id === assignment.vendorId);
+                                    if (vendor) handleViewVendor(vendor);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-900 mr-4"
+                                >
+                                  View
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          ) : null}
         </AnimatePresence>
       </div>
 
-      {/* Assign Vendor Modal */}
+      {/* Assign/Edit Vendor Modal */}
       <Modal
-        isOpen={isAssignModalOpen}
+        isOpen={isAssignModalOpen || isEditAssignmentModalOpen}
         onClose={() => {
           setIsAssignModalOpen(false);
-          setAssignForm({ serviceId: '', vendorId: '', hostelId: '' });
+          setIsEditAssignmentModalOpen(false);
+          setEditingAssignment(null);
+          setAssignForm({ serviceId: '', vendorId: '', hostelId: '', status: 'active', attachment: null });
         }}
-        title="Assign Vendor to Service"
+        title={editingAssignment ? "Edit Vendor Assignment" : "Assign Vendor to Service"}
         size="lg"
       >
         <form onSubmit={handleAssignVendor} className="space-y-6">
@@ -1148,7 +1469,14 @@ const VendorList: React.FC<VendorListProps> = ({
               value={assignForm.serviceId}
               onChange={(value) => setAssignForm({ ...assignForm, serviceId: value })}
               options={serviceOptions}
+              disabled={servicesLoading}
+              placeholder={servicesLoading ? "Loading services..." : "Select Service"}
             />
+            {serviceOptions.length === 0 && !servicesLoading && (
+              <p className="text-sm text-amber-600 mt-1">
+                No services found. Please add services in Settings → Vendor Service.
+              </p>
+            )}
           </div>
 
           <div>
@@ -1159,7 +1487,14 @@ const VendorList: React.FC<VendorListProps> = ({
               value={assignForm.vendorId}
               onChange={(value) => setAssignForm({ ...assignForm, vendorId: value })}
               options={vendorOptions}
+              disabled={allVendorsLoading}
+              placeholder={allVendorsLoading ? "Loading vendors..." : "Select Vendor"}
             />
+            {vendorOptions.length === 0 && !allVendorsLoading && (
+              <p className="text-sm text-amber-600 mt-1">
+                No active vendors found. Please add vendors first.
+              </p>
+            )}
           </div>
 
           <div>
@@ -1175,6 +1510,40 @@ const VendorList: React.FC<VendorListProps> = ({
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Status <span className="text-red-500">*</span>
+            </label>
+            <Select
+              value={assignForm.status || 'active'}
+              onChange={(value) => setAssignForm({ ...assignForm, status: value })}
+              options={[
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+              ]}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Attachment (Image)
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                setAssignForm({ ...assignForm, attachment: file });
+              }}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            {assignForm.attachment && (
+              <p className="mt-2 text-sm text-gray-600">
+                Selected: {assignForm.attachment.name}
+              </p>
+            )}
+          </div>
+
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
             <Button
               type="button"
@@ -1186,8 +1555,8 @@ const VendorList: React.FC<VendorListProps> = ({
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" icon={PlusIcon}>
-              Assign Vendor
+            <Button type="submit" variant="primary" icon={PlusIcon} disabled={isSubmitting}>
+              {isSubmitting ? 'Assigning...' : 'Assign Vendor'}
             </Button>
           </div>
         </form>
@@ -1336,55 +1705,37 @@ const VendorList: React.FC<VendorListProps> = ({
                             />
                           </div>
 
-                          {/* Address Fields */}
-                          <div className="space-y-6">
-                            {/* Country and City Row */}
-                            <div className="grid grid-cols-2 gap-6">
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                  Country <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={vendorForm.country}
-                                  onChange={(e) => setVendorForm({ ...vendorForm, country: e.target.value })}
-                                  placeholder="Enter country"
-                                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  required
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                  City <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={vendorForm.city}
-                                  onChange={(e) => setVendorForm({ ...vendorForm, city: e.target.value })}
-                                  placeholder="Enter city"
-                                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
-          </div>
+                          {/* Address */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Address
+                            </label>
+                            <input
+                              type="text"
+                              value={vendorForm.address}
+                              onChange={(e) => setVendorForm({ ...vendorForm, address: e.target.value })}
+                              placeholder="Enter address"
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
 
-                            {/* Street and Hostel Row */}
-                            <div className="grid grid-cols-2 gap-6">
-          <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                  Street <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={vendorForm.street}
-                                  onChange={(e) => setVendorForm({ ...vendorForm, street: e.target.value })}
-                                  placeholder="Enter street address"
-                                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  required
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                          {/* Location (Google Map Link) */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Location (Google Map Link)
+                            </label>
+                            <input
+                              type="url"
+                              value={vendorForm.location}
+                              onChange={(e) => setVendorForm({ ...vendorForm, location: e.target.value })}
+                              placeholder="https://maps.google.com/..."
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+
+                          {/* Hostel */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
               Hostel <span className="text-red-500">*</span>
             </label>
             <Select
@@ -1394,9 +1745,24 @@ const VendorList: React.FC<VendorListProps> = ({
               disabled={hostelsLoading}
               placeholder={hostelsLoading ? "Loading hostels..." : "Select Hostel"}
             />
-                              </div>
-                            </div>
-          </div>
+                          </div>
+
+                          {/* Status */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Status <span className="text-red-500">*</span>
+                            </label>
+                            <Select
+                              value={vendorForm.status}
+                              onChange={(value) => setVendorForm({ ...vendorForm, status: value })}
+                              options={[
+                                { value: 'active', label: 'Active' },
+                                { value: 'inactive', label: 'Inactive' },
+                                { value: 'pending', label: 'Pending' },
+                                { value: 'suspended', label: 'Suspended' },
+                              ]}
+                            />
+                          </div>
 
                           {/* Rating and Payment Terms Row */}
                           <div className="grid grid-cols-2 gap-6">
@@ -1433,6 +1799,48 @@ const VendorList: React.FC<VendorListProps> = ({
               />
             </div>
                           </div>
+
+                          {/* Attachments */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Attachments
+                            </label>
+                            <input
+                              type="file"
+                              multiple
+                              onChange={(e) => {
+                                const files = Array.from(e.target.files || []);
+                                const fileData = files.map((file) => ({
+                                  name: file.name,
+                                  url: URL.createObjectURL(file),
+                                  uploadedAt: new Date().toISOString(),
+                                }));
+                                setVendorForm({ ...vendorForm, attachments: [...vendorForm.attachments, ...fileData] });
+                              }}
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                            {vendorForm.attachments.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {vendorForm.attachments.map((file, idx) => (
+                                  <div key={idx} className="flex items-center justify-between text-sm text-slate-600 bg-slate-50 p-2 rounded">
+                                    <span>{file.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setVendorForm({
+                                          ...vendorForm,
+                                          attachments: vendorForm.attachments.filter((_, i) => i !== idx),
+                                        });
+                                      }}
+                                      className="text-red-500 hover:text-red-700"
+                                    >
+                                      <XMarkIcon className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -1447,6 +1855,7 @@ const VendorList: React.FC<VendorListProps> = ({
                               value={vendorForm.category}
                               onChange={(value) => setVendorForm({ ...vendorForm, category: value })}
                               options={categoryOptions}
+                              disabled={categoriesLoading}
               />
             </div>
 
@@ -1455,29 +1864,45 @@ const VendorList: React.FC<VendorListProps> = ({
                             <h4 className="text-lg font-semibold text-slate-900 mb-4">Specialty Services</h4>
                             <div className="space-y-4">
                               {vendorForm.specialties.map((specialty) => (
-                                <div key={specialty.id} className="flex gap-4 items-end">
-                                  <div className="flex-1">
-                                    <label className="block text-xs text-slate-500 mb-1">
-                                      Service Name <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={specialty.name}
-                                      onChange={(e) => handleSpecialtyChange(specialty.id, e.target.value)}
-                                      placeholder="e.g., Plumbing, Cleaning, IT Services"
-                                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      required
-                                    />
+                                <div key={specialty.id} className="space-y-2 border border-slate-200 rounded-lg p-4">
+                                  <div className="flex gap-4 items-start">
+                                    <div className="flex-1 space-y-2">
+                                      <div>
+                                        <label className="block text-xs text-slate-500 mb-1">
+                                          Service Name <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={specialty.name}
+                                          onChange={(e) => handleSpecialtyChange(specialty.id, 'name', e.target.value)}
+                                          placeholder="e.g., Plumbing, Cleaning, IT Services"
+                                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          required
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-slate-500 mb-1">
+                                          Description
+                                        </label>
+                                        <textarea
+                                          value={specialty.description}
+                                          onChange={(e) => handleSpecialtyChange(specialty.id, 'description', e.target.value)}
+                                          placeholder="Enter service description"
+                                          rows={3}
+                                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                      </div>
+                                    </div>
+                                    {vendorForm.specialties.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => removeSpecialty(specialty.id)}
+                                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                      >
+                                        <XMarkIcon className="w-5 h-5" />
+                                      </button>
+                                    )}
                                   </div>
-                                  {vendorForm.specialties.length > 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => removeSpecialty(specialty.id)}
-                                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors mb-0.5"
-                                    >
-                                      <XMarkIcon className="w-5 h-5" />
-                                    </button>
-                                  )}
                                 </div>
                               ))}
                               <button
@@ -1565,6 +1990,43 @@ const VendorList: React.FC<VendorListProps> = ({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Hostel</label>
                 <p className="text-sm text-gray-900">{selectedVendor.hostel?.name || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Attachments</label>
+                {selectedVendor.attachments && selectedVendor.attachments.length > 0 ? (
+                  <div className="space-y-2">
+                    {Array.isArray(selectedVendor.attachments) ? (
+                      selectedVendor.attachments.map((attachment: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          {attachment.url && (
+                            <img 
+                              src={attachment.url} 
+                              alt={attachment.filename || `Attachment ${idx + 1}`}
+                              className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                            />
+                          )}
+                          <div>
+                            <p className="text-sm text-gray-900">{attachment.filename || attachment.originalName || `Attachment ${idx + 1}`}</p>
+                            {attachment.url && (
+                              <a 
+                                href={attachment.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                View Full Size
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-900">No attachments available</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">No attachments</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
@@ -1737,66 +2199,63 @@ const VendorList: React.FC<VendorListProps> = ({
                             />
                           </div>
 
-                          {/* Address Fields */}
-                          <div className="space-y-6">
-                            {/* Country and City Row */}
-                            <div className="grid grid-cols-2 gap-6">
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                  Country <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={vendorForm.country}
-                                  onChange={(e) => setVendorForm({ ...vendorForm, country: e.target.value })}
-                                  placeholder="Enter country"
-                                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  required
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                  City <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={vendorForm.city}
-                                  onChange={(e) => setVendorForm({ ...vendorForm, city: e.target.value })}
-                                  placeholder="Enter city"
-                                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  required
-                                />
-                              </div>
-                            </div>
+                          {/* Address */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Address
+                            </label>
+                            <input
+                              type="text"
+                              value={vendorForm.address}
+                              onChange={(e) => setVendorForm({ ...vendorForm, address: e.target.value })}
+                              placeholder="Enter address"
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
 
-                            {/* Street and Hostel Row */}
-                            <div className="grid grid-cols-2 gap-6">
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                  Street <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  value={vendorForm.street}
-                                  onChange={(e) => setVendorForm({ ...vendorForm, street: e.target.value })}
-                                  placeholder="Enter street address"
-                                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  required
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                  Hostel <span className="text-red-500">*</span>
-                                </label>
-                                <Select
-                                  value={vendorForm.hostelId}
-                                  onChange={(value) => setVendorForm({ ...vendorForm, hostelId: value })}
+                          {/* Location (Google Map Link) */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Location (Google Map Link)
+                            </label>
+                            <input
+                              type="url"
+                              value={vendorForm.location}
+                              onChange={(e) => setVendorForm({ ...vendorForm, location: e.target.value })}
+                              placeholder="https://maps.google.com/..."
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+
+                          {/* Hostel */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Hostel <span className="text-red-500">*</span>
+            </label>
+            <Select
+              value={vendorForm.hostelId}
+              onChange={(value) => setVendorForm({ ...vendorForm, hostelId: value })}
                                   options={hostelOptions.filter((opt) => opt.value !== '')}
-                                  disabled={hostelsLoading}
-                                  placeholder={hostelsLoading ? "Loading hostels..." : "Select Hostel"}
-                                />
-                              </div>
-                            </div>
+              disabled={hostelsLoading}
+              placeholder={hostelsLoading ? "Loading hostels..." : "Select Hostel"}
+            />
+                          </div>
+
+                          {/* Status */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Status <span className="text-red-500">*</span>
+                            </label>
+                            <Select
+                              value={vendorForm.status}
+                              onChange={(value) => setVendorForm({ ...vendorForm, status: value })}
+                              options={[
+                                { value: 'active', label: 'Active' },
+                                { value: 'inactive', label: 'Inactive' },
+                                { value: 'pending', label: 'Pending' },
+                                { value: 'suspended', label: 'Suspended' },
+                              ]}
+                            />
                           </div>
 
                           {/* Rating and Payment Terms Row */}
@@ -1848,6 +2307,7 @@ const VendorList: React.FC<VendorListProps> = ({
                               value={vendorForm.category}
                               onChange={(value) => setVendorForm({ ...vendorForm, category: value })}
                               options={categoryOptions}
+                              disabled={categoriesLoading}
                             />
                           </div>
 
@@ -1856,29 +2316,45 @@ const VendorList: React.FC<VendorListProps> = ({
                             <h4 className="text-lg font-semibold text-slate-900 mb-4">Specialty Services</h4>
                             <div className="space-y-4">
                               {vendorForm.specialties.map((specialty) => (
-                                <div key={specialty.id} className="flex gap-4 items-end">
-                                  <div className="flex-1">
-                                    <label className="block text-xs text-slate-500 mb-1">
-                                      Service Name <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={specialty.name}
-                                      onChange={(e) => handleSpecialtyChange(specialty.id, e.target.value)}
-                                      placeholder="e.g., Plumbing, Cleaning, IT Services"
-                                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                      required
-                                    />
+                                <div key={specialty.id} className="space-y-2 border border-slate-200 rounded-lg p-4">
+                                  <div className="flex gap-4 items-start">
+                                    <div className="flex-1 space-y-2">
+                                      <div>
+                                        <label className="block text-xs text-slate-500 mb-1">
+                                          Service Name <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={specialty.name}
+                                          onChange={(e) => handleSpecialtyChange(specialty.id, 'name', e.target.value)}
+                                          placeholder="e.g., Plumbing, Cleaning, IT Services"
+                                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          required
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs text-slate-500 mb-1">
+                                          Description
+                                        </label>
+                                        <textarea
+                                          value={specialty.description}
+                                          onChange={(e) => handleSpecialtyChange(specialty.id, 'description', e.target.value)}
+                                          placeholder="Enter service description"
+                                          rows={3}
+                                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                      </div>
+                                    </div>
+                                    {vendorForm.specialties.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => removeSpecialty(specialty.id)}
+                                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                      >
+                                        <XMarkIcon className="w-5 h-5" />
+                                      </button>
+                                    )}
                                   </div>
-                                  {vendorForm.specialties.length > 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => removeSpecialty(specialty.id)}
-                                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors mb-0.5"
-                                    >
-                                      <XMarkIcon className="w-5 h-5" />
-                                    </button>
-                                  )}
                                 </div>
                               ))}
                               <button

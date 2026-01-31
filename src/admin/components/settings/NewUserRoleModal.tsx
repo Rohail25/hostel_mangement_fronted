@@ -5,9 +5,11 @@ import {
   KeyIcon,
   InformationCircleIcon,
   GlobeAltIcon,
+  BuildingOfficeIcon,
 } from '@heroicons/react/24/outline';
 import type { NewUserRoleModalProps, UserRoleFormData } from '../../types/settings';
 import { createRole, updateRole, updateRolePermissions, getRoleById, getRolePermissions, type Permission } from '../../services/role.service';
+import * as hostelService from '../../services/hostel.service';
 
 /**
  * Helper function to extract permission IDs from form data
@@ -153,13 +155,15 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
   roleId,
   onSuccess,
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'objects'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'objects' | 'authority'>('general');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [hostels, setHostels] = useState<Array<{ id: number; name: string }>>([]);
   const [formData, setFormData] = useState<UserRoleFormData>({
     roleName: '',
     roleDescription: '',
+    hostelId: null,
     permissions: {
       people: {
         prospects: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
@@ -222,6 +226,7 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
           setFormData({
             roleName: roleDetails.roleName,
             roleDescription: roleDetails.description || '',
+            hostelId: roleDetails.hostelId || null,
             permissions: mappedPermissions,
           });
         } catch (err: any) {
@@ -319,6 +324,7 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
         await updateRole(roleId, {
           rolename: formData.roleName,
           description: formData.roleDescription || '',
+          hostelId: formData.hostelId,
         });
 
         console.log('✅ [EDIT ROLE] Role updated with ID:', roleId);
@@ -329,6 +335,7 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
         const roleData = await createRole({
           rolename: formData.roleName,
           description: formData.roleDescription || '',
+          hostelId: formData.hostelId,
         });
 
         console.log('✅ [NEW ROLE] Role created with ID:', roleData.id);
@@ -362,6 +369,7 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
         setFormData({
           roleName: '',
           roleDescription: '',
+          hostelId: null,
           permissions: {
             people: {
               prospects: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
@@ -437,8 +445,25 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
 
   const sidebarItems = [
     { id: 'general' as const, label: 'General Info', icon: InformationCircleIcon },
+    { id: 'authority' as const, label: 'Authority Hostel', icon: BuildingOfficeIcon },
     { id: 'objects' as const, label: 'Objects', icon: GlobeAltIcon },
   ];
+
+  // Fetch hostels when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchHostels = async () => {
+        try {
+          const hostelsData = await hostelService.getAllHostelsFromAPI();
+          setHostels(hostelsData.map((h: any) => ({ id: h.id, name: h.name || 'Unnamed Hostel' })));
+        } catch (err) {
+          console.error('Error fetching hostels:', err);
+          setHostels([]);
+        }
+      };
+      fetchHostels();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -521,6 +546,7 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
                   <div>
                     <h3 className="text-xl font-bold text-slate-900">
                       {activeTab === 'general' && 'GENERAL INFO'}
+                      {activeTab === 'authority' && 'AUTHORITY HOSTEL'}
                       {activeTab === 'objects' && 'OBJECTS'}
                     </h3>
                     <span className="block w-12 h-1 bg-pink-500 mt-1" />
@@ -793,6 +819,76 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
                             </table>
                           </div>
                         </div> */}
+                      </div>
+                    )}
+
+                    {activeTab === 'authority' && (
+                      <div className="space-y-6">
+                        <p className="text-sm text-slate-600">
+                          Select the hostel that this role has authority over. This defines which hostel's data and operations this role can manage.
+                        </p>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-3">
+                            Select Authority Hostel
+                          </label>
+                          
+                          {hostels.length > 0 ? (
+                            <div className="space-y-2">
+                              {/* Option for No Hostel (Global Role) */}
+                              <div className="flex items-center p-4 border border-slate-300 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
+                                onClick={() => setFormData(prev => ({ ...prev, hostelId: null }))}
+                              >
+                                <input
+                                  type="radio"
+                                  name="hostel"
+                                  value=""
+                                  checked={formData.hostelId === null}
+                                  onChange={() => setFormData(prev => ({ ...prev, hostelId: null }))}
+                                  className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                />
+                                <label className="ml-3 flex flex-col">
+                                  <span className="text-sm font-medium text-slate-900">No Specific Hostel</span>
+                                  <span className="text-xs text-slate-500">This is a global role with access to all hostels</span>
+                                </label>
+                              </div>
+
+                              {/* Individual Hostel Options */}
+                              {hostels.map((hostel) => (
+                                <div
+                                  key={hostel.id}
+                                  className="flex items-center p-4 border border-slate-300 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors"
+                                  onClick={() => setFormData(prev => ({ ...prev, hostelId: hostel.id }))}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="hostel"
+                                    value={hostel.id}
+                                    checked={formData.hostelId === hostel.id}
+                                    onChange={() => setFormData(prev => ({ ...prev, hostelId: hostel.id }))}
+                                    className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                  />
+                                  <label className="ml-3 flex flex-col">
+                                    <span className="text-sm font-medium text-slate-900">{hostel.name}</span>
+                                    <span className="text-xs text-slate-500">ID: {hostel.id}</span>
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                              <p className="text-sm text-amber-800">No hostels available. Please create a hostel first.</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {formData.hostelId && (
+                          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                              This role is configured for hostel ID: <strong>{formData.hostelId}</strong>
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

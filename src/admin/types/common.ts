@@ -47,17 +47,24 @@ export interface ToastNotification {
 }
 
 /**
- * Format a number as currency (USD)
+ * Format a number as currency
  * @param amount - The numeric amount
+ * @param currencySymbol - Optional currency symbol (defaults to $)
  * @returns Formatted currency string
  */
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+export function formatCurrency(amount: number, currencySymbol: string = '$'): string {
+  const absAmount = Math.abs(amount);
+  const isNegative = amount < 0;
+  
+  const formatted = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(absAmount);
+
+  const symbol = currencySymbol || '$';
+  const result = `${symbol}${formatted}`;
+  
+  return isNegative ? `-${result}` : result;
 }
 
 /**

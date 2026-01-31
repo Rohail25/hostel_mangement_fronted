@@ -36,6 +36,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Button } from '../components/Button';
 import { getOverviewDashboard, type OverviewDashboardResponse } from '../services/dashboard.service';
+import { getUnassignedAlertsAPI } from '../services/alert.service';
 import jsPDF from 'jspdf';
 
 /**
@@ -46,6 +47,10 @@ const Overview: React.FC = () => {
   const [dashboardData, setDashboardData] = useState<OverviewDashboardResponse['data'] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Unassigned Alerts State
+  const [unassignedAlerts, setUnassignedAlerts] = useState<any[]>([]);
+  const [loadingAlerts, setLoadingAlerts] = useState<boolean>(false);
 
   // Tab state for Paid Transactions & Recent Payments
   const [activePaymentTab, setActivePaymentTab] = useState<'transactions' | 'payments'>('transactions');
@@ -70,6 +75,24 @@ const Overview: React.FC = () => {
     };
 
     fetchDashboardData();
+  }, []);
+
+  // Fetch unassigned alerts on component mount
+  useEffect(() => {
+    const fetchUnassignedAlerts = async () => {
+      try {
+        setLoadingAlerts(true);
+        const response = await getUnassignedAlertsAPI({ limit: 10, status: 'open' });
+        setUnassignedAlerts(response.data.alerts || []);
+      } catch (err: any) {
+        console.error('Error fetching unassigned alerts:', err);
+        setUnassignedAlerts([]);
+      } finally {
+        setLoadingAlerts(false);
+      }
+    };
+
+    fetchUnassignedAlerts();
   }, []);
 
   // Get stats from API data
@@ -287,6 +310,20 @@ const Overview: React.FC = () => {
         return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'Not Started':
         return 'bg-gray-100 text-gray-700 border-gray-200';
+      default:
+        return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
+  // Get severity badge color for alerts
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'DANGER':
+        return 'bg-red-100 text-red-700 border-red-200';
+      case 'WARN':
+        return 'bg-orange-100 text-orange-700 border-orange-200';
+      case 'INFO':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
       default:
         return 'bg-gray-100 text-gray-700 border-gray-200';
     }
@@ -833,6 +870,88 @@ const Overview: React.FC = () => {
                 </div>
               )}
             </motion.div>
+          )}
+        </div>
+
+        {/* Unassigned Alerts */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-slate-900 mb-2 flex items-center gap-2">
+              <BellAlertIcon className="w-6 h-6 text-red-600" />
+              Unassigned Alerts
+            </h2>
+            <p className="text-sm text-slate-600">
+              Total: <span className="font-semibold text-slate-900">{unassignedAlerts.length}</span> alerts pending assignment
+            </p>
+          </div>
+
+          {loadingAlerts ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[400px] overflow-y-auto">
+              {unassignedAlerts.map((alert, idx) => (
+                <motion.div
+                  key={alert.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="flex items-start gap-4 p-3 rounded-lg hover:bg-gray-50 transition-colors border border-gray-100"
+                >
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    alert.severity === 'DANGER' ? 'bg-red-100' : 
+                    alert.severity === 'WARN' ? 'bg-orange-100' : 'bg-blue-100'
+                  }`}>
+                    <BellAlertIcon className={`w-5 h-5 ${
+                      alert.severity === 'DANGER' ? 'text-red-600' : 
+                      alert.severity === 'WARN' ? 'text-orange-600' : 'text-blue-600'
+                    }`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-medium text-slate-900 truncate">{alert.title}</p>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-medium border shrink-0 ${getSeverityColor(alert.severity)}`}>
+                        {alert.severity}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-600 line-clamp-2 mb-1">{alert.description || 'No description'}</p>
+                    <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                      <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 font-medium">
+                        {alert.type}
+                      </span>
+                      {alert.hostel && (
+                        <>
+                          <span>•</span>
+                          <span>{alert.hostel}</span>
+                        </>
+                      )}
+                      {alert.room && (
+                        <>
+                          <span>•</span>
+                          <span>Room {alert.room}</span>
+                        </>
+                      )}
+                      <span>•</span>
+                      <span>{alert.created}</span>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-1 rounded-md text-xs font-medium border shrink-0 ${
+                    alert.rawStatus === 'pending' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                    alert.rawStatus === 'in_progress' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                    'bg-gray-100 text-gray-700 border-gray-200'
+                  }`}>
+                    {alert.rawStatus}
+                  </span>
+                </motion.div>
+              ))}
+              {unassignedAlerts.length === 0 && (
+                <div className="text-center py-8 text-slate-500">
+                  <BellAlertIcon className="w-12 h-12 mx-auto mb-2 text-slate-300" />
+                  <p>No unassigned alerts found.</p>
+                </div>
+              )}
+            </div>
           )}
         </div>
 

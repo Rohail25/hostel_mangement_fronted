@@ -129,6 +129,7 @@ export interface UserRole {
 export interface UserRoleFormData {
   roleName: string;
   roleDescription: string;
+  hostelId: number | null; // Authority Hostel - selected hostel for this role
   permissions: {
     people: {
       [key: string]: {

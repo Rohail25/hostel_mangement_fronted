@@ -76,10 +76,12 @@ export const AdminRoutes: React.FC = () => {
           <Route path="alerts" element={<AlertsList />} />
           <Route path="alerts/bills" element={<AlertsList />} />
           <Route path="alerts/maintenance" element={<AlertsList />} />
+          <Route path="alerts/bin" element={<AlertsList />} />
 
-          {/* Vendor */}
+          {/* Vendor Management */}
           <Route path="vendor" element={<Navigate to="/admin/vendor/management" replace />} />
           <Route path="vendor/management" element={<VendorList />} />
+          <Route path="vendor/list" element={<VendorList />} />
 
           {/* Communication */}
           <Route path="communication" element={<CommunicationBoard />} />

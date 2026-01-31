@@ -29,6 +29,7 @@ import {
   CheckCircleIcon,
   MagnifyingGlassIcon,
   ArrowDownTrayIcon,
+  WrenchScrewdriverIcon,
 } from '@heroicons/react/24/outline';
 import { Button } from '../../components/Button';
 import jsPDF from 'jspdf';
@@ -44,6 +45,9 @@ import { NewUserRoleModal } from '../../components/settings/NewUserRoleModal';
 import { ViewRoleModal } from '../../components/settings/ViewRoleModal';
 import { HostelsList } from '../../components/settings/HostelsList';
 import { AddHostelForm } from '../../components/AddHostelForm';
+import VendorCategoryList from '../../components/settings/VendorCategoryList';
+import VendorServiceList from '../../components/settings/VendorServiceList';
+import { CurrencyManagementCard } from '../../components/CurrencyManagementCard';
 import { changePassword } from '../../services/settings.service';
 import * as hostelService from '../../services/hostel.service';
 import { api } from '../../../services/apiClient';
@@ -762,6 +766,9 @@ const SettingsForm: React.FC = () => {
   const [isAddHostelOpen, setIsAddHostelOpen] = useState(false);
   const [editingHostel, setEditingHostel] = useState<Hostel | null>(null);
   const [hostelsRefreshTrigger, setHostelsRefreshTrigger] = useState(0);
+  const [showVendorCategories, setShowVendorCategories] = useState(false);
+  const [showVendorServices, setShowVendorServices] = useState(false);
+  const [showCurrencyManagement, setShowCurrencyManagement] = useState(false);
 
   // Personal settings cards
   const personalSettings: SettingCard[] = [
@@ -838,6 +845,33 @@ const SettingsForm: React.FC = () => {
       icon: KeyIcon,
       onClick: () => {
         setShowUserRolesList(true);
+      },
+    },
+    {
+      id: 'vendor-category',
+      title: 'Vendor Category',
+      description: 'Manage vendor categories for organizing vendor services.',
+      icon: WrenchScrewdriverIcon,
+      onClick: () => {
+        setShowVendorCategories(true);
+      },
+    },
+    {
+      id: 'vendor-service',
+      title: 'Vendor Service',
+      description: 'Manage vendor services that can be assigned to vendors.',
+      icon: WrenchScrewdriverIcon,
+      onClick: () => {
+        setShowVendorServices(true);
+      },
+    },
+    {
+      id: 'currency',
+      title: 'Currency',
+      description: 'Set and manage your preferred currency for all financial transactions.',
+      icon: CurrencyDollarIcon,
+      onClick: () => {
+        setShowCurrencyManagement(true);
       },
     },
     // {
@@ -1379,6 +1413,24 @@ const SettingsForm: React.FC = () => {
     );
   }
 
+  // If showing vendor categories, render that instead
+  if (showVendorCategories) {
+    return (
+      <VendorCategoryList
+        onBack={() => setShowVendorCategories(false)}
+      />
+    );
+  }
+
+  // If showing vendor services, render that instead
+  if (showVendorServices) {
+    return (
+      <VendorServiceList
+        onBack={() => setShowVendorServices(false)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-8 pb-8">
       {/* Header */}
@@ -1475,6 +1527,34 @@ const SettingsForm: React.FC = () => {
         onClose={() => setIsHostelInfoOpen(false)}
       />
 
+      {/* Currency Management Modal */}
+      {showCurrencyManagement && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowCurrencyManagement(false)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white">
+              <h2 className="text-2xl font-bold text-slate-900">Currency Management</h2>
+              <button
+                onClick={() => setShowCurrencyManagement(false)}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <XMarkIcon className="w-6 h-6 text-slate-600" />
+              </button>
+            </div>
+            <div className="p-6">
+              <CurrencyManagementCard
+                onCurrencyChange={() => {
+                  // Currency updated, you can refresh other data here if needed
+                }}
+              />
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Toast notification */}
       <Toast

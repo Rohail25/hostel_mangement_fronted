@@ -120,6 +120,14 @@ export interface Bed {
   id: number;
   bedNumber: string;
   roomId?: number;
+  status?: 'available' | 'occupied' | 'reserved';
+  currentTenantId?: number | null;
+  currentTenant?: {
+    username?: string;
+    email?: string;
+    phone?: string;
+  } | null;
+  // Keep isOccupied for backward compatibility, but prefer status
   isOccupied?: boolean;
 }
 
@@ -253,19 +261,18 @@ export const getRoomsByFloor = async (floorId: number): Promise<Room[]> => {
  */
 export const getBedsByRoom = async (roomId: number): Promise<Bed[]> => {
   try {
-    const response = await api.get<{ success: boolean; data: Bed[] }>(`/beds/room/${roomId}`);
-    // Extract data from response - API returns { success: true, data: [...] }
+    const response = await api.get<Bed[]>(`/admin/beds/room/${roomId}`);
+    // api.get returns ApiResponse<T>, so response is { success: true, data: T }
+    // API returns { success: true, data: Bed[] }
+    // So response.data is Bed[]
     if (response && response.data && Array.isArray(response.data)) {
       return response.data;
-    }
-    // If response.data is the array directly
-    if (Array.isArray(response)) {
-      return response;
     }
     return [];
   } catch (error: any) {
     console.error('Error fetching beds:', error);
-    throw error;
+    // Return empty array on error instead of throwing to prevent form breaking
+    return [];
   }
 };
 
