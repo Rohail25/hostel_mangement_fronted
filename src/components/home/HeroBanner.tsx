@@ -9,12 +9,14 @@ const HeroBanner = ({ images }: HeroBannerProps) => {
     const [currentSlide, setCurrentSlide] = useState(0);
 
     useEffect(() => {
+        if (!images || images.length === 0) return;
+        
         const interval = setInterval(() => {
             setCurrentSlide((prev) => (prev + 1) % images.length);
         }, 5000);
 
         return () => clearInterval(interval);
-    }, [images.length]);
+    }, [images]);
 
     const goToSlide = (index: number) => {
         setCurrentSlide(index);
@@ -27,6 +29,22 @@ const HeroBanner = ({ images }: HeroBannerProps) => {
     const goToNext = () => {
         setCurrentSlide((prev) => (prev + 1) % images.length);
     };
+
+    // Guard against empty images array
+    if (!images || images.length === 0) {
+        return (
+            <section className="relative h-[600px] md:h-[700px] flex items-center justify-center overflow-hidden bg-gradient-to-br from-primary-500 to-primary-700">
+                <div className="relative z-10 container mx-auto px-6 text-center">
+                    <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-6 drop-shadow-lg">
+                        Live it. Now
+                    </h1>
+                    <p className="text-lg md:text-xl lg:text-2xl text-white mb-10 max-w-3xl mx-auto drop-shadow-md">
+                        Discover amazing hotels and hostels around the world. Experience comfort, luxury, and unforgettable memories.
+                    </p>
+                </div>
+            </section>
+        );
+    }
 
     return (
         <section className="relative h-[600px] md:h-[700px] flex items-center justify-center overflow-hidden">
@@ -103,13 +121,13 @@ const HeroBanner = ({ images }: HeroBannerProps) => {
                 <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                     <Link
                         to="/hostels"
-                        className="bg-white text-primary-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-all shadow-lg transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-primary-600 text-lg w-full max-w-[220px] sm:w-auto sm:max-w-none text-center"
+                        className="bg-white text-primary-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-all shadow-lg transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-primary-600 text-base w-full max-w-[220px] sm:w-auto sm:max-w-none text-center"
                     >
                         Looking for Hostel
                     </Link>
                     <Link
                         to="/onboarding"
-                        className="bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-700 transition-all shadow-lg transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 text-lg w-full max-w-[220px] sm:w-auto sm:max-w-none text-center"
+                        className="bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-700 transition-all shadow-lg transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 text-base w-full max-w-[220px] sm:w-auto sm:max-w-none text-center"
                     >
                         Onboarding
                     </Link>

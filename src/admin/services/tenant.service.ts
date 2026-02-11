@@ -236,6 +236,27 @@ export const getFloors = async (): Promise<Floor[]> => {
 };
 
 /**
+ * Get floors by hostel ID
+ */
+export const getFloorsByHostel = async (hostelId: number): Promise<Floor[]> => {
+  try {
+    const response = await api.get<{ success: boolean; data: Floor[] }>(`/admin/floors/hostel/${hostelId}`);
+    // Extract data from response - API returns { success: true, data: [...] }
+    if (response && response.data && Array.isArray(response.data)) {
+      return response.data;
+    }
+    // If response.data is the array directly
+    if (Array.isArray(response)) {
+      return response;
+    }
+    return [];
+  } catch (error: any) {
+    console.error('Error fetching floors by hostel:', error);
+    throw error;
+  }
+};
+
+/**
  * Get rooms by floor ID
  */
 export const getRoomsByFloor = async (floorId: number): Promise<Room[]> => {

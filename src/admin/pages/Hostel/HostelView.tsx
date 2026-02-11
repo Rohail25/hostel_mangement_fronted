@@ -34,6 +34,8 @@ import { API_ROUTES, API_BASE_URL } from '../../../services/api.config';
 import type { Hostel, ArchitectureData, RoomFormData } from '../../types/hostel';
 import type { ToastType } from '../../types/common';
 import ROUTES from '../../routes/routePaths';
+import { useAuth } from '../../context/AuthContext';
+import { getRolePrefix } from '../../../components/ProtectedRoute';
 
 /**
  * Hostel View page with Details and Architecture tabs
@@ -42,11 +44,18 @@ const HostelView: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const rolePrefix = getRolePrefix(user?.roleType || 'user');
+  // Determine if user is owner to use correct routes
+  const isOwner = user?.roleType === 'owner' || user?.role?.name === 'owner' || user?.role?.roleName === 'owner';
+  const floorRoutes = isOwner ? API_ROUTES.OWNER.FLOOR : API_ROUTES.FLOOR;
+  const roomRoutes = isOwner ? API_ROUTES.OWNER.ROOM : API_ROUTES.ROOM;
+  const bedRoutes = isOwner ? API_ROUTES.OWNER.BED : API_ROUTES.BED;
   const [hostel, setHostel] = useState<Hostel | null>(null);
   const [architectureData, setArchitectureData] =
     useState<ArchitectureData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'details' | 'hostelArrangement' | 'arrangement' | 'architecture' | 'mess'>(
+  const [activeTab, setActiveTab] = useState<'details' | 'arrangement' | 'architecture' | 'mess'>(
     'details'
   );
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
@@ -127,8 +136,10 @@ const HostelView: React.FC = () => {
     try {
       setLoading(true);
       
-      // Load hostel details
-      const hostelResponse = await api.get(API_ROUTES.HOSTEL.BY_ID(hostelId));
+      // Load hostel details (owner uses admin endpoint, backend filters data)
+      const hostelEndpoint = API_ROUTES.HOSTEL.BY_ID(hostelId);
+
+      const hostelResponse = await api.get(hostelEndpoint);
       if (hostelResponse.success && hostelResponse.data) {
         const hostelData = hostelResponse.data;
         
@@ -217,7 +228,7 @@ const HostelView: React.FC = () => {
       const bedsData: any[] = [];
       
       // Get all rooms for this hostel
-      const roomsResponse = await api.get(API_ROUTES.ROOM.BY_HOSTEL(hostelId));
+      const roomsResponse = await api.get(roomRoutes.BY_HOSTEL(hostelId));
       const roomsData = roomsResponse.success && roomsResponse.data
         ? (Array.isArray(roomsResponse.data) ? roomsResponse.data : roomsResponse.data.items || [])
         : [];
@@ -225,7 +236,7 @@ const HostelView: React.FC = () => {
       // Fetch beds for each room with tenant information
       for (const room of roomsData) {
         try {
-          const bedsResponse = await api.get(API_ROUTES.BED.BEDS_BY_ROOM(room.id));
+          const bedsResponse = await api.get(bedRoutes.BEDS_BY_ROOM(room.id));
           if (bedsResponse.success && bedsResponse.data) {
             const roomBeds = Array.isArray(bedsResponse.data) ? bedsResponse.data : bedsResponse.data.items || [];
             
@@ -305,14 +316,14 @@ const HostelView: React.FC = () => {
   const loadArchitectureData = async (hostelId: number) => {
     try {
       // Load floors (blocks)
-      const floorsResponse = await api.get(API_ROUTES.FLOOR.BY_HOSTEL(hostelId));
+      const floorsResponse = await api.get(floorRoutes.BY_HOSTEL(hostelId));
       const floorsData = floorsResponse.success && floorsResponse.data 
         ? (Array.isArray(floorsResponse.data) ? floorsResponse.data : floorsResponse.data.items || [])
         : [];
       setFloors(floorsData);
 
       // Load rooms
-      const roomsResponse = await api.get(API_ROUTES.ROOM.BY_HOSTEL(hostelId));
+      const roomsResponse = await api.get(roomRoutes.BY_HOSTEL(hostelId));
       const roomsData = roomsResponse.success && roomsResponse.data
         ? (Array.isArray(roomsResponse.data) ? roomsResponse.data : roomsResponse.data.items || [])
         : [];
@@ -384,10 +395,10 @@ const HostelView: React.FC = () => {
       };
 
       console.log('📡 Creating room:', payload);
-      console.log('📡 Room CREATE route:', API_ROUTES.ROOM.CREATE);
-      console.log('📡 Full URL will be:', `${API_BASE_URL}${API_ROUTES.ROOM.CREATE}`);
+      console.log('📡 Room CREATE route:', roomRoutes.CREATE);
+      console.log('📡 Full URL will be:', `${API_BASE_URL}${roomRoutes.CREATE}`);
 
-      const response = await api.post(API_ROUTES.ROOM.CREATE, payload);
+      const response = await api.post(roomRoutes.CREATE, payload);
 
       if (response.success) {
         console.log('✅ Room created successfully:', response);
@@ -419,9 +430,9 @@ const HostelView: React.FC = () => {
     await loadArchitectureData(Number(id));
   };
 
-  // Handle adding a seat to a room
-  const handleAddSeat = (floorNumber: number, roomId: string) => {
-    if (!architectureData || !hostel) return;
+  // Handle adding a bed (seat) to a room via API
+  const handleAddSeat = async (floorNumber: number, roomId: string) => {
+    if (!architectureData || !hostel || !id) return;
 
     try {
       // Find the room in the architecture data
@@ -435,74 +446,66 @@ const HostelView: React.FC = () => {
         throw new Error('Room not found');
       }
 
-      // Generate next seat letter (A, B, C, D, E, F, G, ...)
-      const existingSeatNumbers = room.seats.map((s) => s.seatNumber);
-      const seatLetters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-      let nextSeatLetter = 'A';
+      // Get existing beds for this room to determine next bed number
+      const bedsResponse = await api.get(bedRoutes.BEDS_BY_ROOM(roomId));
+      const existingBeds = bedsResponse.success && bedsResponse.data
+        ? (Array.isArray(bedsResponse.data) ? bedsResponse.data : bedsResponse.data.items || [])
+        : [];
+
+      // Generate next bed number (S1, S2, S3, ... or use existing pattern)
+      const existingBedNumbers = existingBeds.map((b: any) => b.bedNumber || b.number || '');
+      let nextBedNumber = 'S1';
+      let bedCounter = 1;
       
-      for (const letter of seatLetters) {
-        if (!existingSeatNumbers.includes(letter)) {
-          nextSeatLetter = letter;
-          break;
-        }
+      while (existingBedNumbers.includes(nextBedNumber)) {
+        bedCounter++;
+        nextBedNumber = `S${bedCounter}`;
       }
 
-      // Create new seat
-      const newSeatId = `${floorNumber}-${room.roomNumber}-${nextSeatLetter}`;
-      const newSeat: import('../../types/hostel').Seat = {
-        id: newSeatId,
-        seatNumber: nextSeatLetter,
-        isOccupied: false,
+      // Create bed via API
+      const payload = {
+        room: roomId,
+        bedNumber: nextBedNumber,
+        bedType: 'single',
       };
 
-      // Update the room with the new seat
-      const updatedRoom = {
-        ...room,
-        seats: [...room.seats, newSeat],
-        totalSeats: room.totalSeats + 1,
-      };
+      const response = await api.post(bedRoutes.CREATE, payload);
 
-      // Update the floor with the updated room
-      const updatedFloor = {
-        ...floor,
-        rooms: floor.rooms.map((r) => (r.id === roomId ? updatedRoom : r)),
-      };
-
-      // Update the architecture data
-      const updatedFloors = architectureData.floors.map((f) =>
-        f.floorNumber === floorNumber ? updatedFloor : f
-      );
-
-      // Recalculate totals
-      let totalSeats = 0;
-      let occupiedSeats = 0;
-      updatedFloors.forEach((f) => {
-        f.rooms.forEach((r) => {
-          totalSeats += r.seats.length;
-          occupiedSeats += r.seats.filter((s) => s.isOccupied).length;
+      if (response.success) {
+        setToast({
+          open: true,
+          type: 'success',
+          message: `Bed ${nextBedNumber} added to Room ${room.roomNumber} successfully!`,
         });
-      });
-
-      const updatedArchitectureData: ArchitectureData = {
-        ...architectureData,
-        floors: updatedFloors,
-        totalSeats,
-        occupiedSeats,
-        availableSeats: totalSeats - occupiedSeats,
-      };
-
-      setArchitectureData(updatedArchitectureData);
-
-      setToast({
-        open: true,
-        type: 'success',
-        message: `Seat ${nextSeatLetter} added to Room ${room.roomNumber} successfully!`,
-      });
-    } catch (error) {
+        
+        // Reload architecture data to reflect the new bed
+        await loadArchitectureData(Number(id));
+      } else {
+        throw new Error(response.message || 'Failed to create bed');
+      }
+    } catch (error: any) {
+      console.error('Error adding bed:', error);
       setToast({
         open: true,
         type: 'error',
-        message: 'Failed to add seat. Please try again.',
+        message: error.message || 'Failed to add bed',
+      });
+    }
+  };
+
+  // Handle clicking on a room to create/add room
+  const handleRoomClick = (floorNumber: number) => {
+    // Find the floor to get its ID
+    const floor = floors.find((f: any) => f.floorNumber === floorNumber);
+    if (floor) {
+      // Set the floor ID in the form and open the add room modal
+      setIsAddRoomOpen(true);
+      // The AddRoomForm will handle the floor selection
+    } else {
+      setToast({
+        open: true,
+        type: 'error',
+        message: 'Floor not found. Please create the block first.',
       });
     }
   };
@@ -532,10 +535,6 @@ const HostelView: React.FC = () => {
       label: 'Details',
     },
     {
-      id: 'hostelArrangement',
-      label: 'Hostel Arrangement',
-    },
-    {
       id: 'mess',
       label: 'Mess',
     },
@@ -555,7 +554,7 @@ const HostelView: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <button
-            onClick={() => navigate(ROUTES.HOSTEL)}
+            onClick={() => navigate(`${rolePrefix}/hostel`)}
             className="text-[#2176FF] hover:text-[#1966E6] mb-4 inline-flex items-center gap-2"
           >
             ← Back to Hostels
@@ -580,7 +579,7 @@ const HostelView: React.FC = () => {
       <Tabs
         tabs={tabs}
         activeTab={activeTab}
-        onChange={(tab) => setActiveTab(tab as 'details' | 'hostelArrangement' | 'arrangement' | 'architecture' | 'mess')}
+        onChange={(tab) => setActiveTab(tab as 'details' | 'arrangement' | 'architecture' | 'mess')}
       />
 
       {/* Tab Content */}
@@ -824,138 +823,6 @@ const HostelView: React.FC = () => {
         </motion.div>
       )}
 
-      {activeTab === 'hostelArrangement' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8"
-        >
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">Hostel Arrangement</h2>
-            <p className="text-slate-600">View and manage all rooms, beds, and tenant allocations</p>
-          </div>
-
-          {bedsLoading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-slate-500">Loading beds and tenant data...</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Block</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Room</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Bed</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Tenant Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Lease Start</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Lease End</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Rent</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
-                  {beds.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center text-slate-500">
-                        No beds found. Use the "Arrange" button to add blocks, rooms, and beds.
-                      </td>
-                    </tr>
-                  ) : (
-                    beds.map((bed: any) => {
-                      const floor = floors.find((f: any) => f.id === bed.floorId);
-                      const room = rooms.find((r: any) => r.id === bed.roomId);
-                      const isOccupied = bed.status === 'occupied' && bed.currentTenant;
-                      
-                      return (
-                        <tr key={bed.id} className={isOccupied ? 'bg-blue-50' : ''}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                            {floor ? `Block ${floor.floorNumber}` : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                            {room ? `Room ${room.roomNumber}` : bed.roomNumber || '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                            {bed.bedNumber || bed.number || '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              isOccupied 
-                                ? 'bg-red-100 text-red-800' 
-                                : 'bg-green-100 text-green-800'
-                            }`}>
-                              {isOccupied ? 'Occupied' : 'Available'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                            {bed.currentTenant?.name || bed.tenantName || '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                            {bed.leaseStartDate ? new Date(bed.leaseStartDate).toLocaleDateString() : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                            {bed.leaseEndDate ? new Date(bed.leaseEndDate).toLocaleDateString() : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                            {bed.rent ? `$${bed.rent}` : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  // TODO: Open edit allocation modal
-                                  setToast({
-                                    open: true,
-                                    type: 'info',
-                                    message: 'Edit allocation feature coming soon',
-                                  });
-                                }}
-                                className="text-blue-600 hover:text-blue-900"
-                                title="Edit Allocation"
-                              >
-                                <PencilIcon className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  if (window.confirm('Are you sure you want to delete this bed?')) {
-                                    try {
-                                      const response = await api.delete(API_ROUTES.BED.DELETE(bed.id));
-                                      if (response.success) {
-                                        setToast({
-                                          open: true,
-                                          type: 'success',
-                                          message: 'Bed deleted successfully',
-                                        });
-                                        await loadBedsWithTenants(Number(id));
-                                      }
-                                    } catch (error: any) {
-                                      setToast({
-                                        open: true,
-                                        type: 'error',
-                                        message: error.message || 'Failed to delete bed',
-                                      });
-                                    }
-                                  }
-                                }}
-                                className="text-red-600 hover:text-red-900"
-                                title="Delete Bed"
-                              >
-                                <TrashIcon className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </motion.div>
-      )}
 
       {activeTab === 'arrangement' && (
         <motion.div
@@ -1056,7 +923,7 @@ const HostelView: React.FC = () => {
                                 onClick={async () => {
                                   if (window.confirm('Are you sure you want to delete this bed?')) {
                                     try {
-                                      const response = await api.delete(API_ROUTES.BED.DELETE(bed.id));
+                                      const response = await api.delete(bedRoutes.DELETE(bed.id));
                                       if (response.success) {
                                         setToast({
                                           open: true,
@@ -1209,6 +1076,7 @@ const HostelView: React.FC = () => {
           <ArchitectureDiagram 
             data={architectureData} 
             onAddSeat={handleAddSeat}
+            onRoomClick={handleRoomClick}
           />
         </motion.div>
       )}

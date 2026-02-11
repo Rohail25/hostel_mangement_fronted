@@ -4,15 +4,30 @@
 
 import { api } from '../../services/apiClient';
 import { API_ROUTES } from '../../services/api.config';
+import { getUserData } from '../../services/auth.storage';
 import type { MessEntry, MessFormData } from '../types/hostel';
 import type { Id } from '../types/common';
+
+const isOwnerUser = (): boolean => {
+  const userData = getUserData();
+  if (!userData) return false;
+  if (userData.roleType) return userData.roleType === 'owner';
+  if (typeof userData.role === 'string') return userData.role === 'owner';
+  return userData.role?.name === 'owner';
+};
+
+// Use owner routes for owners, admin routes for admins
+const getMessRoutes = () => {
+  return isOwnerUser() ? API_ROUTES.OWNER.MESS : API_ROUTES.MESS;
+};
 
 /**
  * Get all mess entries for a hostel
  */
 export async function getMessEntriesByHostelAPI(hostelId: Id): Promise<MessEntry[]> {
   try {
-    const response = await api.get(`/api/admin/mess/hostel/${hostelId}`);
+    const routes = getMessRoutes();
+    const response = await api.get(routes.LIST_BY_HOSTEL(hostelId));
     if (response.success && response.data) {
       return Array.isArray(response.data) ? response.data : [response.data];
     }
@@ -28,7 +43,8 @@ export async function getMessEntriesByHostelAPI(hostelId: Id): Promise<MessEntry
  */
 export async function getMessStatsAPI(hostelId: Id): Promise<any> {
   try {
-    const response = await api.get(`/api/admin/mess/hostel/${hostelId}/stats`);
+    const routes = getMessRoutes();
+    const response = await api.get(routes.STATS_BY_HOSTEL(hostelId));
     if (response.success && response.data) {
       return response.data;
     }
@@ -44,7 +60,8 @@ export async function getMessStatsAPI(hostelId: Id): Promise<any> {
  */
 export async function getMessEntryByIdAPI(messEntryId: number): Promise<MessEntry | null> {
   try {
-    const response = await api.get(`/api/admin/mess/${messEntryId}`);
+    const routes = getMessRoutes();
+    const response = await api.get(routes.BY_ID(messEntryId));
     if (response.success && response.data) {
       return response.data;
     }
@@ -69,7 +86,8 @@ export async function createMessEntryAPI(hostelId: Id, data: MessFormData): Prom
       price: data.price ? parseFloat(data.price as string) : 0
     };
 
-    const response = await api.post('/api/admin/mess', payload);
+    const routes = getMessRoutes();
+    const response = await api.post(routes.CREATE, payload);
     if (response.success && response.data) {
       return response.data;
     }
@@ -92,7 +110,8 @@ export async function updateMessEntryAPI(messEntryId: number, data: Partial<Mess
     if (data.dinner !== undefined) payload.dinner = data.dinner;
     if (data.price !== undefined) payload.price = data.price ? parseFloat(data.price as string) : 0;
 
-    const response = await api.put(`/api/admin/mess/${messEntryId}`, payload);
+    const routes = getMessRoutes();
+    const response = await api.put(routes.UPDATE(messEntryId), payload);
     if (response.success && response.data) {
       return response.data;
     }
@@ -108,7 +127,8 @@ export async function updateMessEntryAPI(messEntryId: number, data: Partial<Mess
  */
 export async function deleteMessEntryAPI(messEntryId: number): Promise<boolean> {
   try {
-    const response = await api.delete(`/api/admin/mess/${messEntryId}`);
+    const routes = getMessRoutes();
+    const response = await api.delete(routes.DELETE(messEntryId));
     if (response.success) {
       return true;
     }

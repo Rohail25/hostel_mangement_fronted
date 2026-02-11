@@ -187,6 +187,16 @@ export const API_ROUTES = {
     DASHBOARD: '/finance/dashboard',
   },
 
+  // Mess Routes (Admin)
+  MESS: {
+    LIST_BY_HOSTEL: (hostelId: string | number) => `/admin/mess/hostel/${hostelId}`,
+    STATS_BY_HOSTEL: (hostelId: string | number) => `/admin/mess/hostel/${hostelId}/stats`,
+    BY_ID: (id: string | number) => `/admin/mess/${id}`,
+    CREATE: '/admin/mess',
+    UPDATE: (id: string | number) => `/admin/mess/${id}`,
+    DELETE: (id: string | number) => `/admin/mess/${id}`,
+  },
+
   // FP&A Routes
   FPA: {
     SUMMARY: '/admin/fpa/summary',
@@ -200,6 +210,60 @@ export const API_ROUTES = {
   // Dashboard Routes
   DASHBOARD: {
     OVERVIEW: '/admin/dashboard/overview',
+  },
+
+  // Owner Routes
+  OWNER: {
+    HOSTELS: '/owner/hostels',
+    HOSTEL_BY_ID: (id: string | number) => `/owner/hostels/${id}`,
+    HOSTEL_UPDATE: (id: string | number) => `/owner/hostels/${id}`,
+    FLOOR: {
+      CREATE: '/owner/floor',
+      LIST: '/owner/floors',
+      BY_HOSTEL: (hostelId: string | number) => `/owner/floors/hostel/${hostelId}`,
+      BY_ID: (id: string | number) => `/owner/floor/${id}`,
+      UPDATE: (id: string | number) => `/owner/floor/${id}`,
+      DELETE: (id: string | number) => `/owner/floor/${id}`,
+    },
+    ROOM: {
+      CREATE: '/owner/room',
+      LIST: '/owner/rooms',
+      BY_HOSTEL: (hostelId: string | number) => `/owner/room/hostel/${hostelId}`,
+      BY_FLOOR: (floorId: string | number) => `/owner/room/floor/${floorId}`,
+      BY_ID: (id: string | number) => `/owner/room/${id}`,
+      UPDATE: (id: string | number) => `/owner/room/${id}`,
+      DELETE: (id: string | number) => `/owner/room/${id}`,
+      UPDATE_STATUS: (id: string | number) => `/owner/room/${id}/status`,
+      MAINTENANCE: (id: string | number) => `/owner/rooms/${id}/maintenance`,
+    },
+    BED: {
+      CREATE: '/owner/bed',
+      BULK_CREATE: '/owner/beds/bulk',
+      LIST: '/owner/beds',
+      BY_ID: (id: string | number) => `/owner/bed/${id}`,
+      UPDATE: (id: string | number) => `/owner/bed/${id}`,
+      DELETE: (id: string | number) => `/owner/bed/${id}`,
+      UPDATE_STATUS: (id: string | number) => `/owner/bed/${id}/status`,
+      BEDS_BY_ROOM: (roomId: string | number) => `/owner/beds/room/${roomId}`,
+    },
+    ALLOCATION: {
+      CREATE: '/owner/allocation',
+      LIST: '/owner/allocations',
+      BY_ID: (id: string | number) => `/owner/allocation/${id}`,
+      UPDATE: (id: string | number) => `/owner/allocation/${id}`,
+      UPDATE_BED: (id: string | number) => `/owner/allocation/bed/${id}`,
+      CHECKOUT: (id: string | number) => `/owner/allocations/${id}/checkout`,
+      TRANSFER: (id: string | number) => `/owner/allocations/${id}/transfer`,
+      ACTIVE_BY_HOSTEL: (hostelId: string | number) => `/owner/allocations/hostel/${hostelId}/active`,
+    },
+    MESS: {
+      LIST_BY_HOSTEL: (hostelId: string | number) => `/owner/mess/hostel/${hostelId}`,
+      STATS_BY_HOSTEL: (hostelId: string | number) => `/owner/mess/hostel/${hostelId}/stats`,
+      BY_ID: (id: string | number) => `/owner/mess/${id}`,
+      CREATE: '/owner/mess',
+      UPDATE: (id: string | number) => `/owner/mess/${id}`,
+      DELETE: (id: string | number) => `/owner/mess/${id}`,
+    },
   },
 
   // Settings Routes

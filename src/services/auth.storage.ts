@@ -8,7 +8,8 @@ export interface UserData {
   username: string;
   email: string;
   phone: string;
-  role: string;
+  role?: string | { id: number; name: string; description?: string } | null;
+  roleType?: 'admin' | 'owner' | 'employee' | 'user' | string;
   status: string;
   createdAt: string;
   token: string;
@@ -80,7 +81,10 @@ export const clearAuthData = (): void => {
  */
 export const getUserRole = (): string | null => {
   const userData = getUserData();
-  return userData?.role || null;
+  if (!userData) return null;
+  if (userData.roleType) return userData.roleType;
+  if (typeof userData.role === 'string') return userData.role;
+  return userData.role?.name || null;
 };
 
 /**

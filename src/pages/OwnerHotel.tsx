@@ -43,6 +43,7 @@ interface OwnerFormData {
     hostelAddress: string
     hostelMap: string
     hostelType: string
+    hostelCategory: string
     roomCount: string
     amenities: string
     photos: FileList | null
@@ -73,7 +74,8 @@ const OwnerHotel = () => {
         hostelCity: '',
         hostelAddress: '',
         hostelMap: '',
-        hostelType: 'Luxury',
+        hostelType: 'mixed',
+        hostelCategory: 'home2',
         roomCount: '',
         amenities: '',
         photos: null,
@@ -202,7 +204,7 @@ const OwnerHotel = () => {
             const hostelData = {
                 name: formData.hostelName,
                 type: [formData.hostelType],
-                category: ['home2'],
+                category: [formData.hostelCategory],
                 address: {
                     city: formData.hostelCity,
                     street: formData.hostelAddress,
@@ -225,27 +227,20 @@ const OwnerHotel = () => {
             }
 
             // Step 1: Create Owner account (Public registration endpoint - no auth required)
-            const ownerResponse = await api.post('/admin/owner/register', formDataToSend, {
+            const ownerResponse = await api.post('/public/owner/register', formDataToSend, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
+                withCredentials: false, // Don't send cookies for public registration
             })
 
             if (!ownerResponse.success) {
                 throw new Error(ownerResponse.message || 'Failed to create owner account')
             }
 
-            const ownerId = ownerResponse.data.id
-
-            // Step 2: Create Hostel linked to owner
-            const hostelResponse = await api.post('/admin/hostels', {
-                ...hostelData,
-                ownerId: ownerId,
-                status: 'active',
-            })
-
-            if (!hostelResponse.success) {
-                throw new Error(hostelResponse.message || 'Failed to create hostel')
+            const createdHostel = ownerResponse.data?.hostel
+            if (!createdHostel) {
+                console.warn('Owner created but hostel not returned in response.')
             }
 
             // Success! Redirect to login
@@ -594,19 +589,32 @@ const OwnerHotel = () => {
                                                 />
                                             </div>
                                             <div className="space-y-2">
-                                                <label className="text-sm font-semibold text-gray-700">Hotel type</label>
+                                                <label className="text-sm font-semibold text-gray-700">Hostel type <span className="text-red-500">*</span></label>
                                                 <select
                                                     name="hostelType"
+                                                    required
                                                     value={formData.hostelType}
                                                     onChange={handleInputChange}
                                                     className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
                                                 >
-                                                    <option>Luxury</option>
-                                                    <option>Business</option>
-                                                    <option>Budget</option>
-                                                    <option>Guest House</option>
-                                                    <option>Resort</option>
-                                                    <option>Boutique</option>
+                                                    <option value="boys">Boys</option>
+                                                    <option value="girls">Girls</option>
+                                                    <option value="family">Family</option>
+                                                    <option value="mixed">Mixed</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-semibold text-gray-700">Hostel category <span className="text-red-500">*</span></label>
+                                                <select
+                                                    name="hostelCategory"
+                                                    required
+                                                    value={formData.hostelCategory}
+                                                    onChange={handleInputChange}
+                                                    className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-400"
+                                                >
+                                                    <option value="luxury">Luxury</option>
+                                                    <option value="back_pack">Back Pack</option>
+                                                    <option value="home2">Home second</option>
                                                 </select>
                                             </div>
                                             <div className="space-y-2">

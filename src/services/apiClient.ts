@@ -49,9 +49,30 @@ const createApiClient = (): AxiosInstance => {
   // Request Interceptor - Add auth token to requests
   client.interceptors.request.use(
     (config) => {
+      // List of public endpoints that don't require authentication
+      const publicEndpoints = [
+        '/public/owner/register',
+        '/admin/owner/register', // Keep for backward compatibility
+        '/auth/login',
+        '/auth/register',
+        '/auth/forgot-password',
+        '/auth/reset-password',
+      ];
+      
+      // Check if this is a public endpoint
+      const isPublicEndpoint = publicEndpoints.some(endpoint => 
+        config.url?.includes(endpoint)
+      );
+      
+      // Only add token if it's not a public endpoint
       const token = getToken();
-      if (token && config.headers) {
+      if (token && config.headers && !isPublicEndpoint) {
         config.headers.Authorization = `Bearer ${token}`;
+      } else if (isPublicEndpoint && config.headers) {
+        // Explicitly remove Authorization header for public endpoints
+        delete config.headers.Authorization;
+        // Also set withCredentials to false to prevent sending cookies
+        config.withCredentials = false;
       }
       
       // Log request for debugging
@@ -94,6 +115,7 @@ const createApiClient = (): AxiosInstance => {
         const requestUrl = error.config?.url || '';
         const isAuthEndpoint = requestUrl.includes('/login') || 
                               requestUrl.includes('/register') || 
+                              requestUrl.includes('/owner/register') ||
                               requestUrl.includes('/forgot-password') ||
                               requestUrl.includes('/reset-password');
         
@@ -101,9 +123,19 @@ const createApiClient = (): AxiosInstance => {
         // Auth endpoints handle their own 401 errors
         if (!isAuthEndpoint) {
           clearAuthData();
-          // Redirect to login page only if not already there
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
+          // Use React Router navigation instead of hard redirect
+          // This allows the ProtectedRoute to handle the redirect properly
+          const currentPath = window.location.pathname;
+          if (currentPath !== '/login' && !currentPath.startsWith('/register')) {
+            // Store the intended destination for redirect after login
+            sessionStorage.setItem('redirectAfterLogin', currentPath);
+            // Use window.location only as fallback for non-React routes
+            if (currentPath.startsWith('/admin') || 
+                currentPath.startsWith('/owner') || 
+                currentPath.startsWith('/employee') || 
+                currentPath.startsWith('/user')) {
+              window.location.href = '/login';
+            }
           }
         }
       }

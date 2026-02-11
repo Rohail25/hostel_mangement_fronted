@@ -13,6 +13,8 @@ import * as employeeService from '../../services/employee.service';
 import * as roleService from '../../services/role.service';
 import * as prospectService from '../../services/prospect.service';
 import jsPDF from 'jspdf';
+import { addPDFBranding, addPDFHeader } from '../../utils/pdfExport';
+import { useAuth } from '../../context/AuthContext';
 
 // Import components
 import TenantForm, { type TenantFormData } from './components/TenantForm';
@@ -35,6 +37,7 @@ type PeopleSection = 'Tenants' | 'Employees' | 'Vendors' | 'Prospects';
 
 const PeopleHub: React.FC = () => {
   const location = useLocation();
+  const { user } = useAuth();
   
   // Get active section from URL
   const getActiveSection = (): PeopleSection | null => {
@@ -1614,7 +1617,12 @@ const PeopleHub: React.FC = () => {
   const handleExportPDF = useCallback(() => {
     try {
       const doc = new jsPDF();
-      let yPos = 20;
+      
+      // Add branding (watermark, logo, center text, user name)
+      const userName = user?.username || 'User';
+      addPDFBranding(doc, userName);
+      
+      let yPos = 35; // Start after header
       
       // Title
       doc.setFontSize(18);
@@ -1680,6 +1688,15 @@ const PeopleHub: React.FC = () => {
         doc.text('No data available for export', 20, yPos);
       }
       
+      // Add header to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        if (i > 1) {
+          addPDFHeader(doc, userName);
+        }
+      }
+      
       // Save PDF
       doc.save(`${activeSection?.toLowerCase() || 'people'}-report-${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error: any) {
@@ -1690,7 +1707,7 @@ const PeopleHub: React.FC = () => {
         message: 'Failed to export PDF. Please try again.',
       });
     }
-  }, [activeSection, filteredTenants, filteredEmployees, filteredProspects]);
+  }, [activeSection, filteredTenants, filteredEmployees, filteredProspects, user]);
 
   // Memoized handlers - use the original handlers directly
   const handleViewMemo = handleView;

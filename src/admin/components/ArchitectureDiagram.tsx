@@ -7,11 +7,13 @@ import type { ArchitectureData } from '../types/hostel';
 interface ArchitectureDiagramProps {
   data: ArchitectureData;
   onAddSeat?: (floorNumber: number, roomId: string) => void;
+  onRoomClick?: (floorNumber: number) => void;
 }
 
 export const ArchitectureDiagram: React.FC<ArchitectureDiagramProps> = ({
   data,
   onAddSeat,
+  onRoomClick,
 }) => {
   return (
     <div className="space-y-8">
@@ -78,8 +80,12 @@ export const ArchitectureDiagram: React.FC<ArchitectureDiagramProps> = ({
                   whileHover={{ scale: 1.05 }}
                   className="bg-slate-50 border-2 border-slate-300 rounded-lg p-4 hover:border-blue-400 transition-colors"
                 >
-                  {/* Room Number */}
-                  <div className="text-center mb-3">
+                  {/* Room Number - Clickable to add room */}
+                  <div 
+                    className="text-center mb-3 cursor-pointer"
+                    onClick={() => onRoomClick && onRoomClick(floor.floorNumber)}
+                    title="Click to add a new room to this block"
+                  >
                     <p className="text-sm font-semibold text-slate-600">
                       Room
                     </p>

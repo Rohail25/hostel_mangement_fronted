@@ -25,6 +25,8 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline';
 import jsPDF from 'jspdf';
+import { addPDFBranding, addPDFHeader } from '../../utils/pdfExport';
+import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/Button';
 import { Modal } from '../../components/Modal';
 import ROUTES from '../../routes/routePaths';
@@ -58,6 +60,7 @@ type ActiveTab = 'Tenants' | 'Employees' | 'Vendors';
 const CommunicationBoard: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   // Determine active tab from route
   const getActiveTab = (): ActiveTab => {
@@ -310,7 +313,12 @@ const CommunicationBoard: React.FC = () => {
   const handleExportPDF = () => {
     try {
       const doc = new jsPDF();
-      let yPos = 20;
+      
+      // Add branding (watermark, logo, center text, user name)
+      const userName = user?.username || 'User';
+      addPDFBranding(doc, userName);
+      
+      let yPos = 35; // Start after header
       
       doc.setFontSize(18);
       doc.text(`${activeTab} Communication Report`, 105, yPos, { align: 'center' });
@@ -348,6 +356,15 @@ const CommunicationBoard: React.FC = () => {
       } else {
         doc.setFontSize(12);
         doc.text(`No ${activeTab.toLowerCase()} available`, 20, yPos);
+      }
+      
+      // Add header to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        if (i > 1) {
+          addPDFHeader(doc, userName);
+        }
       }
       
       doc.save(`communication-${activeTab.toLowerCase()}-report-${new Date().toISOString().split('T')[0]}.pdf`);

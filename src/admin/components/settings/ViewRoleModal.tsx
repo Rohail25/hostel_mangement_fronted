@@ -21,6 +21,45 @@ interface ViewRoleModalProps {
  * Helper function to map permissions array to form structure
  */
 const mapPermissionsToForm = (permissions: Permission[]): UserRoleFormData['permissions'] => {
+  // Initialize sidebar tabs
+  const sidebarTabs: { [key: string]: { viewList: boolean; viewOne: boolean; create: boolean; edit: boolean; delete: boolean } } = {
+    overview: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    people: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    vendorManagement: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    accounts: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    hostelManagement: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    alerts: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    communication: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    fpa: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    settings: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    tenants: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    employees: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    prospects: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    vendorList: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    accountsAll: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    accountsPayable: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    accountsReceivable: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    bills: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    accountsVendor: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    laundry: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    received: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    commTenants: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    commEmployees: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    commVendors: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    fpaMonthly: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    fpaYearly: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    alertsBills: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    alertsMaintenance: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    alertsBin: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    personalInformation: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    changePassword: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    hostelInfo: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    userRoles: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    vendorCategory: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    vendorService: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+    currency: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  };
+
   const formPermissions: UserRoleFormData['permissions'] = {
     people: {
       prospects: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
@@ -37,11 +76,52 @@ const mapPermissionsToForm = (permissions: Permission[]): UserRoleFormData['perm
       tenantRequests: { viewList: 'none', viewOne: 'none', create: false, edit: false, delete: false },
       ownerRequests: { viewList: 'none', viewOne: 'none', create: false, edit: false, delete: false },
     },
+    sidebarTabs,
+  };
+
+  // Map backend resource names to frontend tab keys
+  const resourceToTabMap: { [key: string]: string } = {
+    overview: 'overview',
+    people: 'people',
+    vendor_management: 'vendorManagement',
+    accounts: 'accounts',
+    hostel_management: 'hostelManagement',
+    alerts: 'alerts',
+    communication: 'communication',
+    fpa: 'fpa',
+    settings: 'settings',
+    tenants: 'tenants',
+    employees: 'employees',
+    prospects: 'prospects',
+    vendor_list: 'vendorList',
+    accounts_all: 'accountsAll',
+    accounts_payable: 'accountsPayable',
+    accounts_receivable: 'accountsReceivable',
+    bills: 'bills',
+    accounts_vendor: 'accountsVendor',
+    laundry: 'laundry',
+    received: 'received',
+    comm_tenants: 'commTenants',
+    comm_employees: 'commEmployees',
+    comm_vendors: 'commVendors',
+    fpa_monthly: 'fpaMonthly',
+    fpa_yearly: 'fpaYearly',
+    alerts_bills: 'alertsBills',
+    alerts_maintenance: 'alertsMaintenance',
+    alerts_bin: 'alertsBin',
+    personal_information: 'personalInformation',
+    change_password: 'changePassword',
+    hostel_info: 'hostelInfo',
+    user_roles: 'userRoles',
+    vendor_category: 'vendorCategory',
+    vendor_service: 'vendorService',
+    currency: 'currency',
   };
 
   permissions.forEach((perm) => {
     const { resource, action } = perm;
     
+    // Check if it's a people entity
     if (formPermissions.people[resource as keyof typeof formPermissions.people]) {
       const entityPerms = formPermissions.people[resource as keyof typeof formPermissions.people];
       
@@ -56,6 +136,25 @@ const mapPermissionsToForm = (permissions: Permission[]): UserRoleFormData['perm
         entityPerms.edit = true;
       } else if (action === 'delete') {
         entityPerms.delete = true;
+      }
+    }
+    // Check if it's a sidebar tab
+    else if (formPermissions.sidebarTabs && resourceToTabMap[resource]) {
+      const tabKey = resourceToTabMap[resource];
+      if (formPermissions.sidebarTabs[tabKey]) {
+        const tabPerms = formPermissions.sidebarTabs[tabKey];
+        
+        if (action === 'view_list') {
+          tabPerms.viewList = true;
+        } else if (action === 'view_one') {
+          tabPerms.viewOne = true;
+        } else if (action === 'create') {
+          tabPerms.create = true;
+        } else if (action === 'edit') {
+          tabPerms.edit = true;
+        } else if (action === 'delete') {
+          tabPerms.delete = true;
+        }
       }
     }
   });
@@ -78,6 +177,7 @@ export const ViewRoleModal: React.FC<ViewRoleModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const peopleEntities = [
+    { key: 'prospects', label: 'Prospects' },
     { key: 'owners', label: 'Owners' },
     { key: 'vendors', label: 'Vendors' },
     { key: 'tenants', label: 'Tenants' },
@@ -345,6 +445,104 @@ export const ViewRoleModal: React.FC<ViewRoleModalProps> = ({
                                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                             {permissions.viewOne || 'none'}
                                           </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          {getPermissionIcon(permissions.create)}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          {getPermissionIcon(permissions.edit)}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          {getPermissionIcon(permissions.delete)}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sidebar Tabs Section */}
+                      {roleData.permissions.sidebarTabs && (
+                        <div className="mt-6">
+                          <h4 className="text-base font-semibold text-slate-800 mb-3">Sidebar Tabs</h4>
+                          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+                            <div className="overflow-x-auto">
+                              <table className="w-full">
+                                <thead className="bg-slate-50">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                                      Tab Name
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                                      View List
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                                      View One
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                                      Create
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                                      Edit
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                                      Delete
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                  {Object.entries(roleData.permissions.sidebarTabs).map(([key, permissions]: [string, any]) => {
+                                    const tabLabels: { [key: string]: string } = {
+                                      overview: 'Overview',
+                                      people: 'People',
+                                      vendorManagement: 'Vendor Management',
+                                      accounts: 'Accounts',
+                                      hostelManagement: 'Hostel Management',
+                                      alerts: 'Alerts',
+                                      communication: 'Communication',
+                                      fpa: 'FP&A',
+                                      settings: 'Settings',
+                                      tenants: 'Tenants (People)',
+                                      employees: 'Employees',
+                                      prospects: 'Prospects (People)',
+                                      vendorList: 'Vendor List',
+                                      accountsAll: 'Accounts - All',
+                                      accountsPayable: 'Accounts - Payable',
+                                      accountsReceivable: 'Accounts - Receivable',
+                                      bills: 'Bills',
+                                      accountsVendor: 'Accounts - Vendor',
+                                      laundry: 'Laundry',
+                                      received: 'Received',
+                                      commTenants: 'Communication - Tenants',
+                                      commEmployees: 'Communication - Employees',
+                                      commVendors: 'Communication - Vendors',
+                                      fpaMonthly: 'FP&A - Monthly',
+                                      fpaYearly: 'FP&A - Yearly',
+                                      alertsBills: 'Alerts - Bills',
+                                      alertsMaintenance: 'Alerts - Maintenance',
+                                      alertsBin: 'Alerts - Alert Bin',
+                                      personalInformation: 'Personal Information',
+                                      changePassword: 'Change Password',
+                                      hostelInfo: 'Hostel Info',
+                                      userRoles: 'User Roles',
+                                      vendorCategory: 'Vendor Category',
+                                      vendorService: 'Vendor Service',
+                                      currency: 'Currency',
+                                    };
+                                    return (
+                                      <tr key={key} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                                          {tabLabels[key] || key}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          {getPermissionIcon(permissions.viewList)}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          {getPermissionIcon(permissions.viewOne)}
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                           {getPermissionIcon(permissions.create)}

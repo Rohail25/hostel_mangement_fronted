@@ -10,70 +10,53 @@ import {
 import type { NewUserRoleModalProps, UserRoleFormData } from '../../types/settings';
 import { createRole, updateRole, updateRolePermissions, getRoleById, getRolePermissions, type Permission } from '../../services/role.service';
 import * as hostelService from '../../services/hostel.service';
+import { api } from '../../../services/apiClient';
 
 /**
  * Helper function to extract permission IDs from form data
  * This maps the form permission structure to permission IDs
  * Note: This is a placeholder mapping - you may need to adjust based on your permission system
  */
-const extractPermissionIds = (formData: UserRoleFormData): number[] => {
+// Fetch permissions from API and build mapping dynamically
+const fetchPermissionMapping = async (): Promise<{ [key: string]: number }> => {
+  try {
+    const response = await api.get('/admin/permissions?limit=1000');
+    
+    if (response && response.success && response.data) {
+      const permissions = response.data.permissions || response.data;
+      const mapping: { [key: string]: number } = {};
+      
+      permissions.forEach((perm: any) => {
+        const key = `${perm.resource}_${perm.action}`;
+        mapping[key] = perm.id;
+      });
+      
+      return mapping;
+    }
+  } catch (error) {
+    console.error('Error fetching permissions:', error);
+  }
+  
+  // Fallback: Return empty mapping if API call fails
+  return {};
+};
+
+const extractPermissionIds = async (formData: UserRoleFormData): Promise<number[]> => {
   const permissionIds: number[] = [];
   
-  // Map people permissions to permission IDs
-  // Format: {resource}_{action} -> permission ID
-  // Example: owners_view_list -> 1, owners_view_one -> 2, vendors_view_list -> 6
-  const permissionMapping: { [key: string]: number } = {
-    // Owners permissions
-    'owners_view_list': 1,
-    'owners_view_one': 2,
-    'owners_create': 3,
-    'owners_edit': 4,
-    'owners_delete': 5,
-    // Vendors permissions
-    'vendors_view_list': 6,
-    'vendors_view_one': 7,
-    'vendors_create': 8,
-    'vendors_edit': 9,
-    'vendors_delete': 10,
-    // Tenants permissions
-    'tenants_view_list': 11,
-    'tenants_view_one': 12,
-    'tenants_create': 13,
-    'tenants_edit': 14,
-    'tenants_delete': 15,
-    // Add more mappings as needed
-  };
+  // Fetch permission mapping from API
+  const permissionMapping = await fetchPermissionMapping();
   
   // Extract people permissions
   Object.entries(formData.permissions.people).forEach(([entity, perms]) => {
-    if (perms.viewList && permissionMapping[`${entity}_view_list`]) {
-      permissionIds.push(permissionMapping[`${entity}_view_list`]);
-    }
-    if (perms.viewOne && permissionMapping[`${entity}_view_one`]) {
-      permissionIds.push(permissionMapping[`${entity}_view_one`]);
-    }
-    if (perms.create && permissionMapping[`${entity}_create`]) {
-      permissionIds.push(permissionMapping[`${entity}_create`]);
-    }
-    if (perms.edit && permissionMapping[`${entity}_edit`]) {
-      permissionIds.push(permissionMapping[`${entity}_edit`]);
-    }
-    if (perms.delete && permissionMapping[`${entity}_delete`]) {
-      permissionIds.push(permissionMapping[`${entity}_delete`]);
-    }
-  });
-  
-  // Extract tasks and maintenance permissions
-  Object.entries(formData.permissions.tasksAndMaintenance).forEach(([entity, perms]) => {
-    // Handle viewList/viewOne which can be 'none' | 'view' | 'edit'
-    if (perms.viewList && perms.viewList !== 'none') {
-      const key = `${entity}_view_list_${perms.viewList}`;
+    if (perms.viewList) {
+      const key = `${entity}_view_list`;
       if (permissionMapping[key]) {
         permissionIds.push(permissionMapping[key]);
       }
     }
-    if (perms.viewOne && perms.viewOne !== 'none') {
-      const key = `${entity}_view_one_${perms.viewOne}`;
+    if (perms.viewOne) {
+      const key = `${entity}_view_one`;
       if (permissionMapping[key]) {
         permissionIds.push(permissionMapping[key]);
       }
@@ -98,13 +81,229 @@ const extractPermissionIds = (formData: UserRoleFormData): number[] => {
     }
   });
   
+  // Extract sidebar tabs permissions
+  Object.entries(formData.permissions.sidebarTabs || {}).forEach(([entity, perms]) => {
+    if (perms.viewList) {
+      const key = `${entity}_view_list`;
+      if (permissionMapping[key]) {
+        permissionIds.push(permissionMapping[key]);
+      }
+    }
+    if (perms.viewOne) {
+      const key = `${entity}_view_one`;
+      if (permissionMapping[key]) {
+        permissionIds.push(permissionMapping[key]);
+      }
+    }
+    if (perms.create) {
+      const key = `${entity}_create`;
+      if (permissionMapping[key]) {
+        permissionIds.push(permissionMapping[key]);
+      }
+    }
+    if (perms.edit) {
+      const key = `${entity}_edit`;
+      if (permissionMapping[key]) {
+        permissionIds.push(permissionMapping[key]);
+      }
+    }
+    if (perms.delete) {
+      const key = `${entity}_delete`;
+      if (permissionMapping[key]) {
+        permissionIds.push(permissionMapping[key]);
+      }
+    }
+  });
+
+  // Extract tasks and maintenance permissions
+  Object.entries(formData.permissions.tasksAndMaintenance).forEach(([entity, perms]) => {
+    // Handle viewList/viewOne which can be 'none' | 'view' | 'edit'
+    if (perms.viewList && perms.viewList !== 'none') {
+      // For tasks, we use the level as part of the key
+      const key = `${entity}_view_list_${perms.viewList}`;
+      if (permissionMapping[key]) {
+        permissionIds.push(permissionMapping[key]);
+      } else {
+        // Fallback: try without level suffix
+        const fallbackKey = `${entity}_view_list`;
+        if (permissionMapping[fallbackKey]) {
+          permissionIds.push(permissionMapping[fallbackKey]);
+        }
+      }
+    }
+    if (perms.viewOne && perms.viewOne !== 'none') {
+      const key = `${entity}_view_one_${perms.viewOne}`;
+      if (permissionMapping[key]) {
+        permissionIds.push(permissionMapping[key]);
+      } else {
+        // Fallback: try without level suffix
+        const fallbackKey = `${entity}_view_one`;
+        if (permissionMapping[fallbackKey]) {
+          permissionIds.push(permissionMapping[fallbackKey]);
+        }
+      }
+    }
+    if (perms.create) {
+      const key = `${entity}_create`;
+      if (permissionMapping[key]) {
+        permissionIds.push(permissionMapping[key]);
+      }
+    }
+    if (perms.edit) {
+      const key = `${entity}_edit`;
+      if (permissionMapping[key]) {
+        permissionIds.push(permissionMapping[key]);
+      }
+    }
+    if (perms.delete) {
+      const key = `${entity}_delete`;
+      if (permissionMapping[key]) {
+        permissionIds.push(permissionMapping[key]);
+      }
+    }
+  });
+
+  // Extract sidebar tabs permissions
+  // Map frontend tab keys to backend resource names
+  const tabResourceMap: { [key: string]: string } = {
+    overview: 'overview',
+    people: 'people',
+    vendorManagement: 'vendor_management',
+    accounts: 'accounts',
+    hostelManagement: 'hostel_management',
+    alerts: 'alerts',
+    communication: 'communication',
+    fpa: 'fpa',
+    settings: 'settings',
+    tenants: 'tenants',
+    employees: 'employees',
+    prospects: 'prospects',
+    vendorList: 'vendor_list',
+    accountsAll: 'accounts_all',
+    accountsPayable: 'accounts_payable',
+    accountsReceivable: 'accounts_receivable',
+    bills: 'bills',
+    accountsVendor: 'accounts_vendor',
+    laundry: 'laundry',
+    received: 'received',
+    commTenants: 'comm_tenants',
+    commEmployees: 'comm_employees',
+    commVendors: 'comm_vendors',
+    fpaMonthly: 'fpa_monthly',
+    fpaYearly: 'fpa_yearly',
+    alertsBills: 'alerts_bills',
+    alertsMaintenance: 'alerts_maintenance',
+    alertsBin: 'alerts_bin',
+    personalInformation: 'personal_information',
+    changePassword: 'change_password',
+    hostelInfo: 'hostel_info',
+    userRoles: 'user_roles',
+    vendorCategory: 'vendor_category',
+    vendorService: 'vendor_service',
+    currency: 'currency',
+  };
+
+  if (formData.permissions.sidebarTabs) {
+    Object.entries(formData.permissions.sidebarTabs).forEach(([entity, perms]) => {
+      // Skip Personal Information and Change Password - they're always accessible
+      if (entity === 'personalInformation' || entity === 'changePassword') {
+        return;
+      }
+
+      const resource = tabResourceMap[entity] || entity;
+      
+      if (perms.viewList) {
+        const key = `${resource}_view_list`;
+        if (permissionMapping[key]) {
+          permissionIds.push(permissionMapping[key]);
+        }
+      }
+      if (perms.viewOne) {
+        const key = `${resource}_view_one`;
+        if (permissionMapping[key]) {
+          permissionIds.push(permissionMapping[key]);
+        }
+      }
+      if (perms.create) {
+        const key = `${resource}_create`;
+        if (permissionMapping[key]) {
+          permissionIds.push(permissionMapping[key]);
+        }
+      }
+      if (perms.edit) {
+        const key = `${resource}_edit`;
+        if (permissionMapping[key]) {
+          permissionIds.push(permissionMapping[key]);
+        }
+      }
+      if (perms.delete) {
+        const key = `${resource}_delete`;
+        if (permissionMapping[key]) {
+          permissionIds.push(permissionMapping[key]);
+        }
+      }
+    });
+  }
+  
   return permissionIds;
 };
+
+/**
+ * Initialize sidebar tabs with default values
+ */
+const initializeSidebarTabs = () => ({
+  // Main Sidebar Tabs
+  overview: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  people: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  vendorManagement: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  accounts: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  hostelManagement: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  alerts: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  communication: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  fpa: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  settings: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  // Second Sidebar - People
+  tenants: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  employees: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  prospects: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  // Second Sidebar - Vendor
+  vendorList: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  // Second Sidebar - Accounts
+  accountsAll: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  accountsPayable: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  accountsReceivable: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  bills: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  accountsVendor: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  laundry: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  received: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  // Second Sidebar - Communication
+  commTenants: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  commEmployees: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  commVendors: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  // Second Sidebar - FP&A
+  fpaMonthly: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  fpaYearly: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  // Second Sidebar - Alerts
+  alertsBills: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  alertsMaintenance: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  alertsBin: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  // Second Sidebar - Settings
+  personalInformation: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  changePassword: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  hostelInfo: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  userRoles: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  vendorCategory: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  vendorService: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+  currency: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
+});
 
 /**
  * Helper function to map permissions array to form structure (same as ViewRoleModal)
  */
 const mapPermissionsToForm = (permissions: Permission[]): UserRoleFormData['permissions'] => {
+  // Initialize all sidebar tabs
+  const sidebarTabs = initializeSidebarTabs();
+
   const formPermissions: UserRoleFormData['permissions'] = {
     people: {
       prospects: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
@@ -121,11 +320,52 @@ const mapPermissionsToForm = (permissions: Permission[]): UserRoleFormData['perm
       tenantRequests: { viewList: 'none', viewOne: 'none', create: false, edit: false, delete: false },
       ownerRequests: { viewList: 'none', viewOne: 'none', create: false, edit: false, delete: false },
     },
+    sidebarTabs,
+  };
+
+  // Map backend resource names to frontend tab keys
+  const resourceToTabMap: { [key: string]: string } = {
+    overview: 'overview',
+    people: 'people',
+    vendor_management: 'vendorManagement',
+    accounts: 'accounts',
+    hostel_management: 'hostelManagement',
+    alerts: 'alerts',
+    communication: 'communication',
+    fpa: 'fpa',
+    settings: 'settings',
+    tenants: 'tenants',
+    employees: 'employees',
+    prospects: 'prospects',
+    vendor_list: 'vendorList',
+    accounts_all: 'accountsAll',
+    accounts_payable: 'accountsPayable',
+    accounts_receivable: 'accountsReceivable',
+    bills: 'bills',
+    accounts_vendor: 'accountsVendor',
+    laundry: 'laundry',
+    received: 'received',
+    comm_tenants: 'commTenants',
+    comm_employees: 'commEmployees',
+    comm_vendors: 'commVendors',
+    fpa_monthly: 'fpaMonthly',
+    fpa_yearly: 'fpaYearly',
+    alerts_bills: 'alertsBills',
+    alerts_maintenance: 'alertsMaintenance',
+    alerts_bin: 'alertsBin',
+    personal_information: 'personalInformation',
+    change_password: 'changePassword',
+    hostel_info: 'hostelInfo',
+    user_roles: 'userRoles',
+    vendor_category: 'vendorCategory',
+    vendor_service: 'vendorService',
+    currency: 'currency',
   };
 
   permissions.forEach((perm) => {
     const { resource, action } = perm;
     
+    // Check if it's a people entity
     if (formPermissions.people[resource as keyof typeof formPermissions.people]) {
       const entityPerms = formPermissions.people[resource as keyof typeof formPermissions.people];
       
@@ -140,6 +380,25 @@ const mapPermissionsToForm = (permissions: Permission[]): UserRoleFormData['perm
         entityPerms.edit = true;
       } else if (action === 'delete') {
         entityPerms.delete = true;
+      }
+    }
+    // Check if it's a sidebar tab
+    else if (formPermissions.sidebarTabs && resourceToTabMap[resource]) {
+      const tabKey = resourceToTabMap[resource];
+      if (formPermissions.sidebarTabs[tabKey]) {
+        const tabPerms = formPermissions.sidebarTabs[tabKey];
+        
+        if (action === 'view_list') {
+          tabPerms.viewList = true;
+        } else if (action === 'view_one') {
+          tabPerms.viewOne = true;
+        } else if (action === 'create') {
+          tabPerms.create = true;
+        } else if (action === 'edit') {
+          tabPerms.edit = true;
+        } else if (action === 'delete') {
+          tabPerms.delete = true;
+        }
       }
     }
   });
@@ -204,6 +463,7 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
           delete: false,
         },
       },
+      sidebarTabs: initializeSidebarTabs(),
     },
   });
 
@@ -248,6 +508,7 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
         setFormData({
           roleName: '',
           roleDescription: '',
+          hostelId: null,
           permissions: {
             people: {
               prospects: { viewList: false, viewOne: false, create: false, edit: false, delete: false },
@@ -288,12 +549,26 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
                 delete: false,
               },
             },
+            sidebarTabs: initializeSidebarTabs(),
           },
         });
         setActiveTab('general');
       }
     }
   }, [isOpen, propRoleData, isEdit, roleId]);
+
+  // Ensure sidebarTabs is always initialized when modal opens
+  useEffect(() => {
+    if (isOpen && (!formData.permissions.sidebarTabs || Object.keys(formData.permissions.sidebarTabs).length === 0)) {
+      setFormData(prev => ({
+        ...prev,
+        permissions: {
+          ...prev.permissions,
+          sidebarTabs: initializeSidebarTabs(),
+        },
+      }));
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) {
@@ -343,7 +618,7 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
       }
 
       // Step 2: Extract permission IDs from form data
-      const permissionIds = extractPermissionIds(formData);
+      const permissionIds = await extractPermissionIds(formData);
       
       console.log('📋 [ROLE] Extracted permission IDs:', permissionIds);
 
@@ -353,6 +628,8 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
         await updateRolePermissions(currentRoleId, {
           permissions: permissionIds,
         });
+      } else {
+        console.log('⚠️ [ROLE] No permissions selected, skipping permission update');
       }
 
       setSuccess(isEdit ? 'User role updated successfully!' : 'User role created successfully!');
@@ -443,6 +720,36 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
     }));
   };
 
+  const handleSidebarTabPermissionChange = (
+    tab: string,
+    permission: 'viewList' | 'viewOne' | 'create' | 'edit' | 'delete',
+    value: boolean
+  ) => {
+    setFormData((prev) => {
+      // Ensure sidebarTabs is initialized
+      const sidebarTabs = prev.permissions.sidebarTabs || initializeSidebarTabs();
+      return {
+        ...prev,
+        permissions: {
+          ...prev.permissions,
+          sidebarTabs: {
+            ...sidebarTabs,
+            [tab]: {
+              ...(sidebarTabs[tab] || {
+                viewList: false,
+                viewOne: false,
+                create: false,
+                edit: false,
+                delete: false,
+              }),
+              [permission]: value,
+            },
+          },
+        },
+      };
+    });
+  };
+
   const sidebarItems = [
     { id: 'general' as const, label: 'General Info', icon: InformationCircleIcon },
     { id: 'authority' as const, label: 'Authority Hostel', icon: BuildingOfficeIcon },
@@ -477,9 +784,13 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
   }, [isOpen]);
 
   const peopleEntities = [
+    { key: 'prospects', label: 'Prospects' },
     { key: 'owners', label: 'Owners' },
     { key: 'vendors', label: 'Vendors' },
     { key: 'tenants', label: 'Tenants' },
+    { key: 'users', label: 'Users' },
+    { key: 'userRoles', label: 'User Roles' },
+    { key: 'apiKeys', label: 'API Keys' },
   ];
 
   const tasksEntities = [
@@ -487,6 +798,53 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
     { key: 'workOrders', label: 'Work Orders' },
     { key: 'tenantRequests', label: 'Tenant Requests' },
     { key: 'ownerRequests', label: 'Owner Requests' },
+  ];
+
+  // Sidebar tabs from both main sidebar and second sidebar
+  const sidebarTabEntities = [
+    // Main Sidebar Tabs
+    { key: 'overview', label: 'Overview' },
+    { key: 'people', label: 'People' },
+    { key: 'vendorManagement', label: 'Vendor Management' },
+    { key: 'accounts', label: 'Accounts' },
+    { key: 'hostelManagement', label: 'Hostel Management' },
+    { key: 'alerts', label: 'Alerts' },
+    { key: 'communication', label: 'Communication' },
+    { key: 'fpa', label: 'FP&A' },
+    { key: 'settings', label: 'Settings' },
+    // Second Sidebar - People
+    { key: 'tenants', label: 'Tenants (People)' },
+    { key: 'employees', label: 'Employees' },
+    { key: 'prospects', label: 'Prospects (People)' },
+    // Second Sidebar - Vendor
+    { key: 'vendorList', label: 'Vendor List' },
+    // Second Sidebar - Accounts
+    { key: 'accountsAll', label: 'Accounts - All' },
+    { key: 'accountsPayable', label: 'Accounts - Payable' },
+    { key: 'accountsReceivable', label: 'Accounts - Receivable' },
+    { key: 'bills', label: 'Bills' },
+    { key: 'accountsVendor', label: 'Accounts - Vendor' },
+    { key: 'laundry', label: 'Laundry' },
+    { key: 'received', label: 'Received' },
+    // Second Sidebar - Communication
+    { key: 'commTenants', label: 'Communication - Tenants' },
+    { key: 'commEmployees', label: 'Communication - Employees' },
+    { key: 'commVendors', label: 'Communication - Vendors' },
+    // Second Sidebar - FP&A
+    { key: 'fpaMonthly', label: 'FP&A - Monthly' },
+    { key: 'fpaYearly', label: 'FP&A - Yearly' },
+    // Second Sidebar - Alerts
+    { key: 'alertsBills', label: 'Alerts - Bills' },
+    { key: 'alertsMaintenance', label: 'Alerts - Maintenance' },
+    { key: 'alertsBin', label: 'Alerts - Alert Bin' },
+    // Second Sidebar - Settings
+    { key: 'personalInformation', label: 'Personal Information' },
+    { key: 'changePassword', label: 'Change Password' },
+    { key: 'hostelInfo', label: 'Hostel Info' },
+    { key: 'userRoles', label: 'User Roles' },
+    { key: 'vendorCategory', label: 'Vendor Category' },
+    { key: 'vendorService', label: 'Vendor Service' },
+    { key: 'currency', label: 'Currency' },
   ];
 
   return (
@@ -712,7 +1070,7 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
                         </div>
 
                         {/* Tasks & Maintenance Section */}
-                        {/* <div>
+                        <div className="mt-6">
                           <h4 className="text-lg font-semibold text-slate-900 mb-4">Tasks & Maintenance</h4>
                           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
                             <table className="w-full">
@@ -760,6 +1118,7 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
                                                   ? 'bg-blue-600 border-blue-600'
                                                   : 'bg-white border-slate-300 hover:border-blue-400'
                                               }`}
+                                              title={level}
                                             />
                                           ))}
                                         </div>
@@ -778,6 +1137,7 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
                                                   ? 'bg-blue-600 border-blue-600'
                                                   : 'bg-white border-slate-300 hover:border-blue-400'
                                               }`}
+                                              title={level}
                                             />
                                           ))}
                                         </div>
@@ -818,7 +1178,113 @@ export const NewUserRoleModal: React.FC<NewUserRoleModalProps> = ({
                               </tbody>
                             </table>
                           </div>
-                        </div> */}
+                        </div>
+
+                        {/* Sidebar Tabs Section */}
+                        <div className="mt-6">
+                          <h4 className="text-lg font-semibold text-slate-900 mb-4">Sidebar Tabs</h4>
+                          <p className="text-sm text-slate-600 mb-4">
+                            Control access to all navigation tabs from both the main sidebar and second sidebar.
+                          </p>
+                          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                            <div className="overflow-x-auto">
+                              <table className="w-full">
+                                <thead className="bg-slate-50">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase">
+                                      Tab Name
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase">
+                                      View List
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase">
+                                      View One
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase">
+                                      Create
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase">
+                                      Edit
+                                    </th>
+                                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase">
+                                      Delete
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                  {sidebarTabEntities.map((entity) => {
+                                    // Ensure sidebarTabs is initialized - use a safe default
+                                    const sidebarTabs = formData.permissions.sidebarTabs || initializeSidebarTabs();
+                                    const permissions = sidebarTabs[entity.key] || {
+                                      viewList: false,
+                                      viewOne: false,
+                                      create: false,
+                                      edit: false,
+                                      delete: false,
+                                    };
+                                    return (
+                                      <tr key={entity.key} className="hover:bg-slate-50">
+                                        <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                                          {entity.label}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          <input
+                                            type="checkbox"
+                                            checked={permissions.viewList}
+                                            onChange={(e) =>
+                                              handleSidebarTabPermissionChange(entity.key, 'viewList', e.target.checked)
+                                            }
+                                            className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                          />
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          <input
+                                            type="checkbox"
+                                            checked={permissions.viewOne}
+                                            onChange={(e) =>
+                                              handleSidebarTabPermissionChange(entity.key, 'viewOne', e.target.checked)
+                                            }
+                                            className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                          />
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          <input
+                                            type="checkbox"
+                                            checked={permissions.create}
+                                            onChange={(e) =>
+                                              handleSidebarTabPermissionChange(entity.key, 'create', e.target.checked)
+                                            }
+                                            className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                          />
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          <input
+                                            type="checkbox"
+                                            checked={permissions.edit}
+                                            onChange={(e) =>
+                                              handleSidebarTabPermissionChange(entity.key, 'edit', e.target.checked)
+                                            }
+                                            className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                          />
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          <input
+                                            type="checkbox"
+                                            checked={permissions.delete}
+                                            onChange={(e) =>
+                                              handleSidebarTabPermissionChange(entity.key, 'delete', e.target.checked)
+                                            }
+                                            className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                          />
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
 

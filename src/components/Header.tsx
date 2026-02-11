@@ -146,13 +146,13 @@ const Header = () => {
             </li>
             <li>
               <Link
-                to="/blogs/blog-1"
-                className={`font-medium transition-colors ${location.pathname.startsWith('/blogs/') && location.pathname !== '/blogs'
+                to="/about"
+                className={`font-medium transition-colors ${location.pathname === '/about'
                   ? 'text-primary-600 border-b-2 border-primary-600 pb-1'
                   : 'text-gray-700 hover:text-primary-600'
                   }`}
               >
-                Blog Detail
+                About
               </Link>
             </li>
             <li>
@@ -273,14 +273,14 @@ const Header = () => {
             </li>
             <li>
               <Link
-                to="/blogs/blog-1"
-                className={`block font-medium transition-colors ${location.pathname.startsWith('/blogs/') && location.pathname !== '/blogs'
+                to="/about"
+                className={`block font-medium transition-colors ${location.pathname === '/about'
                   ? 'text-primary-600'
                   : 'text-gray-700 hover:text-primary-600'
                   }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Blog Detail
+                About
               </Link>
             </li>
             <li>

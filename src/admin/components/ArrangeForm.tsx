@@ -11,6 +11,7 @@ import { Button } from './Button';
 import { Toast } from './Toast';
 import { api } from '../../services/apiClient';
 import { API_ROUTES } from '../../services/api.config';
+import { useAuth } from '../context/AuthContext';
 
 interface ArrangeFormProps {
   isOpen: boolean;
@@ -44,6 +45,11 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
   hostelId,
   onSuccess,
 }) => {
+  const { user } = useAuth();
+  const isOwner = user?.roleType === 'owner';
+  const floorRoutes = isOwner ? API_ROUTES.OWNER.FLOOR : API_ROUTES.FLOOR;
+  const roomRoutes = isOwner ? API_ROUTES.OWNER.ROOM : API_ROUTES.ROOM;
+  const bedRoutes = isOwner ? API_ROUTES.OWNER.BED : API_ROUTES.BED;
   const [activeTab, setActiveTab] = useState<'block' | 'room' | 'seats'>('block');
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -76,14 +82,14 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
       setLoading(true);
       
       // Load blocks (floors)
-      const floorsResponse = await api.get(API_ROUTES.FLOOR.BY_HOSTEL(hostelId));
+      const floorsResponse = await api.get(floorRoutes.BY_HOSTEL(hostelId));
       const floorsData = floorsResponse.success && floorsResponse.data
         ? (Array.isArray(floorsResponse.data) ? floorsResponse.data : floorsResponse.data.items || [])
         : [];
       setBlocks(floorsData);
 
       // Load rooms
-      const roomsResponse = await api.get(API_ROUTES.ROOM.BY_HOSTEL(hostelId));
+      const roomsResponse = await api.get(roomRoutes.BY_HOSTEL(hostelId));
       const roomsData = roomsResponse.success && roomsResponse.data
         ? (Array.isArray(roomsResponse.data) ? roomsResponse.data : roomsResponse.data.items || [])
         : [];
@@ -93,7 +99,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
       const allBeds: Bed[] = [];
       for (const room of roomsData) {
         try {
-          const bedsResponse = await api.get(API_ROUTES.BED.BEDS_BY_ROOM(room.id));
+          const bedsResponse = await api.get(bedRoutes.BEDS_BY_ROOM(room.id));
           if (bedsResponse.success && bedsResponse.data) {
             const roomBeds = Array.isArray(bedsResponse.data) ? bedsResponse.data : bedsResponse.data.items || [];
             allBeds.push(...roomBeds);
@@ -123,14 +129,26 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
         setToast({
           open: true,
           type: 'warning',
-          message: 'Please enter a block name',
+          message: 'Please enter a block number',
         });
         return;
       }
 
-      const response = await api.post(API_ROUTES.FLOOR.CREATE, {
+      const floorNumberValue = parseInt(blockForm.floorNumber, 10);
+      if (!Number.isFinite(floorNumberValue) || floorNumberValue < 1) {
+        setToast({
+          open: true,
+          type: 'warning',
+          message: 'Block number must be a positive number',
+        });
+        return;
+      }
+
+      const response = await api.post(floorRoutes.CREATE, {
         hostel: hostelId,
-        floorName: blockForm.floorNumber.trim(),
+        hostelId,
+        floorNumber: floorNumberValue,
+        floorName: `Block ${floorNumberValue}`,
       });
 
       if (response.success) {
@@ -161,13 +179,24 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
         setToast({
           open: true,
           type: 'warning',
-          message: 'Please enter a block name',
+          message: 'Please enter a block number',
         });
         return;
       }
 
-      const response = await api.put(API_ROUTES.FLOOR.UPDATE(editingBlock.id), {
-        floorName: blockForm.floorNumber.trim(),
+      const floorNumberValue = parseInt(blockForm.floorNumber, 10);
+      if (!Number.isFinite(floorNumberValue) || floorNumberValue < 1) {
+        setToast({
+          open: true,
+          type: 'warning',
+          message: 'Block number must be a positive number',
+        });
+        return;
+      }
+
+      const response = await api.put(floorRoutes.UPDATE(editingBlock.id), {
+        floorNumber: floorNumberValue,
+        floorName: `Block ${floorNumberValue}`,
       });
 
       if (response.success) {
@@ -196,7 +225,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
     }
 
     try {
-      const response = await api.delete(API_ROUTES.FLOOR.DELETE(blockId));
+      const response = await api.delete(floorRoutes.DELETE(blockId));
       if (response.success) {
         setToast({
           open: true,
@@ -228,11 +257,15 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
         return;
       }
 
-      const response = await api.post(API_ROUTES.ROOM.CREATE, {
+      const response = await api.post(roomRoutes.CREATE, {
         hostel: hostelId,
+        hostelId,
         floor: parseInt(roomForm.floorId),
+        floorId: parseInt(roomForm.floorId),
         roomNumber: roomForm.roomNumber.trim(),
-        totalBeds: parseInt(roomForm.totalBeds) || 0,
+        roomType: 'single',
+        totalBeds: parseInt(roomForm.totalBeds) || 1,
+        pricePerBed: 0,
       });
 
       if (response.success) {
@@ -259,7 +292,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
     if (!editingRoom) return;
 
     try {
-      const response = await api.put(API_ROUTES.ROOM.UPDATE(editingRoom.id), {
+      const response = await api.put(roomRoutes.UPDATE(editingRoom.id), {
         roomNumber: roomForm.roomNumber.trim(),
         totalBeds: parseInt(roomForm.totalBeds) || editingRoom.totalBeds,
       });
@@ -290,7 +323,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
     }
 
     try {
-      const response = await api.delete(API_ROUTES.ROOM.DELETE(roomId));
+      const response = await api.delete(roomRoutes.DELETE(roomId));
       if (response.success) {
         setToast({
           open: true,
@@ -322,8 +355,8 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
         return;
       }
 
-      const response = await api.post(API_ROUTES.BED.CREATE, {
-        roomId: parseInt(bedForm.roomId),
+      const response = await api.post(bedRoutes.CREATE, {
+        room: parseInt(bedForm.roomId),
         bedNumber: bedForm.bedNumber.trim(),
         bedType: 'single',
         status: 'available',
@@ -353,7 +386,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
     if (!editingBed) return;
 
     try {
-      const response = await api.put(API_ROUTES.BED.UPDATE(editingBed.id), {
+      const response = await api.put(bedRoutes.UPDATE(editingBed.id), {
         bedNumber: bedForm.bedNumber.trim(),
       });
 
@@ -383,7 +416,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
     }
 
     try {
-      const response = await api.delete(API_ROUTES.BED.DELETE(bedId));
+      const response = await api.delete(bedRoutes.DELETE(bedId));
       if (response.success) {
         setToast({
           open: true,
@@ -508,14 +541,15 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
                           <div className="space-y-4">
                             <div>
                               <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Block Name <span className="text-red-500">*</span>
+                                Block Number <span className="text-red-500">*</span>
                               </label>
                               <input
-                                type="text"
+                                type="number"
+                                min="1"
                                 value={blockForm.floorNumber}
                                 onChange={(e) => setBlockForm({ floorNumber: e.target.value })}
                                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Enter block name (e.g., Block A, Ground Floor)"
+                                placeholder="Enter block number (e.g., 1)"
                                 required
                               />
                             </div>

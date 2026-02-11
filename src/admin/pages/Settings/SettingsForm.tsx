@@ -52,6 +52,7 @@ import { changePassword } from '../../services/settings.service';
 import * as hostelService from '../../services/hostel.service';
 import { api } from '../../../services/apiClient';
 import { API_ROUTES } from '../../../services/api.config';
+import { useAuth } from '../../context/AuthContext';
 import type {
   PersonalInfoModalProps,
   HostelInfoModalProps,
@@ -69,6 +70,9 @@ interface SettingCard {
   description: string;
   icon: React.ComponentType<{ className?: string }>;
   onClick?: () => void;
+  permissionResource?: string; // Resource name for permission check (e.g., 'hostel_info', 'user_roles')
+  permissionAction?: string; // Action name for permission check (e.g., 'view_list')
+  alwaysVisible?: boolean; // If true, card is always visible (e.g., Personal Information, Change Password)
 }
 
 interface LoginPasswordModalProps {
@@ -744,6 +748,7 @@ const UsersList: React.FC<UsersListProps> = ({ onBack, onNewUser, onEditUser }) 
  * Settings form page with card-based layout
  */
 const SettingsForm: React.FC = () => {
+  const { user, hasPermission } = useAuth();
   const [toast, setToast] = useState<{
     open: boolean;
     type: ToastType;
@@ -770,6 +775,27 @@ const SettingsForm: React.FC = () => {
   const [showVendorServices, setShowVendorServices] = useState(false);
   const [showCurrencyManagement, setShowCurrencyManagement] = useState(false);
 
+  // Helper function to check if a card should be visible
+  const canSeeCard = (card: SettingCard): boolean => {
+    // Always visible cards (Personal Information and Change Password)
+    if (card.alwaysVisible) {
+      return true;
+    }
+
+    // Admin and Owner can see all cards
+    if (user?.isAdmin || user?.roleType === 'admin' || user?.roleType === 'owner') {
+      return true;
+    }
+
+    // For other roles, check permission
+    if (card.permissionResource && card.permissionAction) {
+      return hasPermission(card.permissionResource, card.permissionAction);
+    }
+
+    // If no permission specified, allow access (for backward compatibility)
+    return true;
+  };
+
   // Personal settings cards
   const personalSettings: SettingCard[] = [
     {
@@ -780,6 +806,7 @@ const SettingsForm: React.FC = () => {
       onClick: () => {
         setIsPersonalInfoOpen(true);
       },
+      alwaysVisible: true, // Always visible to all users
     },
     {
       id: 'login-password',
@@ -789,6 +816,7 @@ const SettingsForm: React.FC = () => {
       onClick: () => {
         setIsLoginPasswordOpen(true);
       },
+      alwaysVisible: true, // Always visible to all users
     },
   ];
 
@@ -802,6 +830,8 @@ const SettingsForm: React.FC = () => {
       onClick: () => {
         setShowHostelsList(true);
       },
+      permissionResource: 'hostel_info',
+      permissionAction: 'view_list',
     },
     // {
     //   id: 'region-currency',
@@ -846,6 +876,8 @@ const SettingsForm: React.FC = () => {
       onClick: () => {
         setShowUserRolesList(true);
       },
+      permissionResource: 'user_roles',
+      permissionAction: 'view_list',
     },
     {
       id: 'vendor-category',
@@ -855,6 +887,8 @@ const SettingsForm: React.FC = () => {
       onClick: () => {
         setShowVendorCategories(true);
       },
+      permissionResource: 'vendor_category',
+      permissionAction: 'view_list',
     },
     {
       id: 'vendor-service',
@@ -864,6 +898,8 @@ const SettingsForm: React.FC = () => {
       onClick: () => {
         setShowVendorServices(true);
       },
+      permissionResource: 'vendor_service',
+      permissionAction: 'view_list',
     },
     {
       id: 'currency',
@@ -873,6 +909,8 @@ const SettingsForm: React.FC = () => {
       onClick: () => {
         setShowCurrencyManagement(true);
       },
+      permissionResource: 'currency',
+      permissionAction: 'view_list',
     },
     // {
     //   id: 'subscription',
@@ -1451,9 +1489,10 @@ const SettingsForm: React.FC = () => {
       <div className="space-y-2">
         <h2 className="text-xl font-bold text-slate-900">Personal</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {personalSettings.map((setting, index) => (
+          {personalSettings.filter(card => canSeeCard(card)).map((setting, index) => (
             <motion.div
               key={setting.id}
+              id={`setting-card-${setting.id}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
@@ -1482,9 +1521,10 @@ const SettingsForm: React.FC = () => {
       <div className="space-y-2">
         <h2 className="text-xl font-bold text-slate-900">Company</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {companySettings.map((setting, index) => (
+          {companySettings.filter(card => canSeeCard(card)).map((setting, index) => (
             <motion.div
               key={setting.id}
+              id={`setting-card-${setting.id}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: (index + 2) * 0.05 }}

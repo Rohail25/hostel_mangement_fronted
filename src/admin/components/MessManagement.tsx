@@ -71,9 +71,9 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
   const [selectedDay, setSelectedDay] = useState<string>(getCurrentDayName());
   const [formData, setFormData] = useState<MessFormData>({
     day: getCurrentDayName(),
-    breakfast: { items: [{ id: `breakfast-${Date.now()}`, name: '', quantity: '', unit: '' }] },
-    lunch: { items: [{ id: `lunch-${Date.now() + 1}`, name: '', quantity: '', unit: '' }] },
-    dinner: { items: [{ id: `dinner-${Date.now() + 2}`, name: '', quantity: '', unit: '' }] },
+    breakfast: { items: [{ id: `breakfast-${Date.now()}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
+    lunch: { items: [{ id: `lunch-${Date.now() + 1}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
+    dinner: { items: [{ id: `dinner-${Date.now() + 2}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
     price: '',
   });
 
@@ -111,7 +111,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
       ...prev,
       [mealType]: {
         ...prev[mealType],
-        items: [...prev[mealType].items, { id: `${mealType}-${Date.now()}-${Math.random()}`, name: '', quantity: '', unit: '' }],
+        items: [...prev[mealType].items, { id: `${mealType}-${Date.now()}-${Math.random()}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }],
       },
     }));
   }, []);
@@ -129,7 +129,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
   const handleItemChange = useCallback((
     mealType: MealType,
     index: number,
-    field: 'name' | 'quantity' | 'unit',
+    field: 'name' | 'quantity' | 'unit' | 'cost' | 'ingredients',
     value: string
   ) => {
     setFormData((prev) => ({
@@ -272,8 +272,10 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 name: item.name,
                 quantity: item.quantity,
                 unit: item.unit || '',
+                cost: item.cost ? String(item.cost) : '',
+                ingredients: item.ingredients ? (Array.isArray(item.ingredients) ? item.ingredients.join(', ') : item.ingredients) : '',
               }))
-            : [{ id: `breakfast-${Date.now()}`, name: '', quantity: '', unit: '' }],
+            : [{ id: `breakfast-${Date.now()}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }],
         notes: entry.breakfast.notes,
       },
       lunch: {
@@ -284,8 +286,10 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 name: item.name,
                 quantity: item.quantity,
                 unit: item.unit || '',
+                cost: item.cost ? String(item.cost) : '',
+                ingredients: item.ingredients ? (Array.isArray(item.ingredients) ? item.ingredients.join(', ') : item.ingredients) : '',
               }))
-            : [{ id: `lunch-${Date.now()}`, name: '', quantity: '', unit: '' }],
+            : [{ id: `lunch-${Date.now()}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }],
         notes: entry.lunch.notes,
       },
       dinner: {
@@ -296,8 +300,10 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 name: item.name,
                 quantity: item.quantity,
                 unit: item.unit || '',
+                cost: item.cost ? String(item.cost) : '',
+                ingredients: item.ingredients ? (Array.isArray(item.ingredients) ? item.ingredients.join(', ') : item.ingredients) : '',
               }))
-            : [{ id: `dinner-${Date.now()}`, name: '', quantity: '', unit: '' }],
+            : [{ id: `dinner-${Date.now()}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }],
         notes: entry.dinner.notes,
       },
       price: entry.price ? entry.price.toString() : '',
@@ -334,9 +340,9 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
     setSelectedDay('Monday');
     setFormData({
       day: 'Monday',
-      breakfast: { items: [{ id: `breakfast-${now}`, name: '', quantity: '', unit: '' }] },
-      lunch: { items: [{ id: `lunch-${now + 1}`, name: '', quantity: '', unit: '' }] },
-      dinner: { items: [{ id: `dinner-${now + 2}`, name: '', quantity: '', unit: '' }] },
+      breakfast: { items: [{ id: `breakfast-${now}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
+      lunch: { items: [{ id: `lunch-${now + 1}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
+      dinner: { items: [{ id: `dinner-${now + 2}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
       price: '',
     });
   };
@@ -982,10 +988,10 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
 // MealSection component defined outside to prevent recreation on each render
 interface MealSectionProps {
   mealType: MealType;
-  mealData: { items: Array<{ id?: string; name: string; quantity: string; unit?: string }>; notes?: string };
+  mealData: { items: Array<{ id?: string; name: string; quantity: string; unit?: string; cost?: string; ingredients?: string }>; notes?: string };
   onAddItem: () => void;
   onRemoveItem: (index: number) => void;
-  onItemChange: (index: number, field: 'name' | 'quantity' | 'unit', value: string) => void;
+  onItemChange: (index: number, field: 'name' | 'quantity' | 'unit' | 'cost' | 'ingredients', value: string) => void;
   onNotesChange: (notes: string) => void;
 }
 
@@ -1044,7 +1050,7 @@ const MealSectionComponent: React.FC<MealSectionProps> = React.memo(({
             </div>
 
             {/* Quantity and Unit Row */}
-            <div className="flex gap-2 items-end">
+            <div className="flex gap-2 items-end mb-2">
               <div className="flex-1">
                 <label className="text-xs text-slate-600 font-medium block mb-1">Quantity</label>
                 <input
@@ -1062,6 +1068,32 @@ const MealSectionComponent: React.FC<MealSectionProps> = React.memo(({
                   placeholder="kg, pcs, ltr, tbsp, etc"
                   value={item.unit || ''}
                   onChange={(e) => onItemChange(index, 'unit', e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Cost and Ingredients Row */}
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="text-xs text-slate-600 font-medium block mb-1">Cost</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={item.cost || ''}
+                  onChange={(e) => onItemChange(index, 'cost', e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-slate-600 font-medium block mb-1">Ingredients</label>
+                <input
+                  type="text"
+                  placeholder="Salt, Pepper, Butter, etc"
+                  value={item.ingredients || ''}
+                  onChange={(e) => onItemChange(index, 'ingredients', e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>

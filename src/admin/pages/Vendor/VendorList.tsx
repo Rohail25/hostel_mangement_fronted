@@ -781,18 +781,36 @@ const VendorList: React.FC<VendorListProps> = ({
     loadAllVendors();
   }, []);
 
-  // Get vendor options for assignment - use all vendors, not just from selected hostel
+  // Get vendor options for assignment - filter by categories that match userId
   const vendorOptions = useMemo(() => {
+    // Get category names from vendor categories (these are filtered by userId on backend)
+    const userCategoryNames = vendorCategories.map(cat => cat.name?.toLowerCase().trim()).filter(Boolean);
+    
     const vendorsToUse = allVendorsForDropdown.length > 0 
       ? allVendorsForDropdown 
       : (vendors.length > 0 ? vendors : (vendorsData as unknown as Vendor[]));
+    
+    // Filter vendors: only show vendors whose category matches one of the user's categories
     return vendorsToUse
-      .filter((v) => v.status === 'active' || v.status === 'Active' || v.statusLabel === 'Active')
+      .filter((v) => {
+        // Check if vendor is active
+        const isActive = v.status === 'active' || v.status === 'Active' || v.statusLabel === 'Active';
+        if (!isActive) return false;
+        
+        // If no user categories, show all vendors (backward compatibility)
+        if (userCategoryNames.length === 0) return true;
+        
+        // Check if vendor's category matches any user category
+        const vendorCategory = v.category?.toLowerCase().trim();
+        if (!vendorCategory) return false;
+        
+        return userCategoryNames.includes(vendorCategory);
+      })
       .map((v) => ({
         value: String(v.id),
         label: `${v.name}${v.specialty ? ` (${v.specialty})` : ''}`,
       }));
-  }, [allVendorsForDropdown, vendors]);
+  }, [allVendorsForDropdown, vendors, vendorCategories]);
 
   // Load services from API
   const [servicesFromAPI, setServicesFromAPI] = useState<Service[]>([]);

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
-import { login } from '../services/auth.service';
+import { useAuth } from '../admin/context/AuthContext';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -10,7 +10,7 @@ const Login = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const { login: authLogin } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,12 +25,8 @@ const Login = () => {
     }
 
     try {
-      // Call the actual login API
-      const userData = await login({ email, password });
-      
-      
-      // Navigate to admin panel after successful login
-      navigate('/admin/overview', { replace: true });
+      // Use AuthContext login which handles role-based navigation
+      await authLogin(email, password);
     } catch (err: any) {
       // Set error message for display
       setError(err?.message || 'Login failed. Please check your credentials and try again.');

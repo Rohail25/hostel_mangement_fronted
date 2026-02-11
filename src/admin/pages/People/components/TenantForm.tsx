@@ -261,16 +261,17 @@ const TenantForm: React.FC<TenantFormProps> = ({
     }
   }, [initialData, editingId, isOpen]);
 
-  // Load floors when hostel is selected
+  // Load floors when hostel is selected - Only show floors for the selected hostel
   useEffect(() => {
     const fetchFloors = async () => {
       if (formData.hostelId) {
         try {
           setFloorsLoading(true);
-          const floors = await tenantService.getFloors();
+          // Get floors only for the selected hostel
+          const floors = await tenantService.getFloorsByHostel(Number(formData.hostelId));
           const floorOptions = floors.map(floor => ({
             value: String(floor.id),
-            label: floor.floorName || `Floor ${floor.number}`,
+            label: floor.floorName || `Floor ${floor.floorNumber || floor.number}`,
           }));
           setAvailableFloors(floorOptions);
         } catch (error) {

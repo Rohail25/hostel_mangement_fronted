@@ -112,6 +112,8 @@ export interface MessItem {
   name: string;
   quantity: string; // e.g., "2 kg", "5 pieces", "1 liter"
   unit?: string; // kg, pieces, liter, etc.
+  cost?: number; // Cost of this item
+  ingredients?: string[]; // Ingredients needed for this item
 }
 
 /**
@@ -144,15 +146,36 @@ export interface MessEntry {
 export interface MessFormData {
   day: string; // Day of week (Monday, Tuesday, etc.)
   breakfast: {
-    items: Array<{ id?: string; name: string; quantity: string; unit?: string }>;
+    items: Array<{ 
+      id?: string; 
+      name: string; 
+      quantity: string; 
+      unit?: string;
+      cost?: string; // Cost of this item
+      ingredients?: string; // Comma-separated ingredients
+    }>;
     notes?: string;
   };
   lunch: {
-    items: Array<{ id?: string; name: string; quantity: string; unit?: string }>;
+    items: Array<{ 
+      id?: string; 
+      name: string; 
+      quantity: string; 
+      unit?: string;
+      cost?: string; // Cost of this item
+      ingredients?: string; // Comma-separated ingredients
+    }>;
     notes?: string;
   };
   dinner: {
-    items: Array<{ id?: string; name: string; quantity: string; unit?: string }>;
+    items: Array<{ 
+      id?: string; 
+      name: string; 
+      quantity: string; 
+      unit?: string;
+      cost?: string; // Cost of this item
+      ingredients?: string; // Comma-separated ingredients
+    }>;
     notes?: string;
   };
   price?: string; // Optional price for the meal

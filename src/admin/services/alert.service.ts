@@ -493,20 +493,11 @@ export async function getUnassignedAlertsAPI(params?: {
   priority?: string;
 }): Promise<AlertListApiResponse> {
   try {
-    console.log('🔐 [GET UNASSIGNED ALERTS] Calling endpoint: /admin/alerts/unassigned');
-
-    const response = await api.get<AlertListApiResponse>(API_ROUTES.ALERT.UNASSIGNED, { params });
-
-    console.log('✅ [GET UNASSIGNED ALERTS] Response received:', response);
-
-    if (!response.success || !response.data) {
+    console.log('🔐 [GET UNASSIGNED ALERTS] Calling endpoint: /admin/alerts/unassigned');    const response = await api.get<AlertListApiResponse>(API_ROUTES.ALERT.UNASSIGNED, { params });    console.log('✅ [GET UNASSIGNED ALERTS] Response received:', response);    if (!response.success || !response.data) {
       throw new Error(response.message || 'Failed to fetch unassigned alerts');
-    }
-
-    return response;
+    }    return response;
   } catch (error: any) {
     console.error('❌ [GET UNASSIGNED ALERTS] Error:', error);
     throw error;
   }
 }
-

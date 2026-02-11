@@ -11,6 +11,8 @@ import type { ToastType } from '../../types/common';
 import ROUTES from '../../routes/routePaths';
 import { api } from '../../../services/apiClient';
 import { API_ROUTES } from '../../../services/api.config';
+import { useAuth } from '../../context/AuthContext';
+import { getRolePrefix } from '../../../components/ProtectedRoute';
 
 /**
  * Hostel edit page
@@ -18,6 +20,8 @@ import { API_ROUTES } from '../../../services/api.config';
 const HostelEdit: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const rolePrefix = getRolePrefix(user?.roleType || 'user');
   const [loading, setLoading] = useState(true);
   const [hostel, setHostel] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(true);
@@ -34,7 +38,10 @@ const HostelEdit: React.FC = () => {
     const loadHostel = async () => {
       try {
         setLoading(true);
-        const response = await api.get(API_ROUTES.HOSTEL.BY_ID(Number(id)));
+        // Owner uses admin endpoint (backend filters data)
+        const hostelEndpoint = API_ROUTES.HOSTEL.BY_ID(Number(id));
+
+        const response = await api.get(hostelEndpoint);
         if (response.success && response.data) {
           setHostel(response.data);
         } else {
@@ -43,7 +50,7 @@ const HostelEdit: React.FC = () => {
             type: 'error',
             message: 'Hostel not found',
           });
-          setTimeout(() => navigate(ROUTES.HOSTEL), 2000);
+          setTimeout(() => navigate(`${rolePrefix}/hostel`), 2000);
         }
       } catch (error: any) {
         setToast({
@@ -51,7 +58,7 @@ const HostelEdit: React.FC = () => {
           type: 'error',
           message: error.message || 'Failed to load hostel',
         });
-        setTimeout(() => navigate(ROUTES.HOSTEL), 2000);
+        setTimeout(() => navigate(`${rolePrefix}/hostel`), 2000);
       } finally {
         setLoading(false);
       }
@@ -86,7 +93,10 @@ const HostelEdit: React.FC = () => {
         mapLink: data.mapLink?.trim() || undefined,
       };
 
-      const response = await api.put(API_ROUTES.HOSTEL.UPDATE(Number(id)), payload);
+      // Owner uses admin endpoint (backend filters data)
+      const updateEndpoint = API_ROUTES.HOSTEL.UPDATE(Number(id));
+
+      const response = await api.put(updateEndpoint, payload);
 
       if (response.success) {
         setToast({
@@ -94,7 +104,7 @@ const HostelEdit: React.FC = () => {
           type: 'success',
           message: response.message || 'Hostel updated successfully!',
         });
-        setTimeout(() => navigate(ROUTES.HOSTEL), 1500);
+        setTimeout(() => navigate(`${rolePrefix}/hostel`), 1500);
       } else {
         throw new Error(response.message || 'Update failed');
       }
@@ -123,7 +133,7 @@ const HostelEdit: React.FC = () => {
       {/* Header */}
       <div>
         <button
-          onClick={() => navigate(ROUTES.HOSTEL)}
+          onClick={() => navigate(`${rolePrefix}/hostel`)}
           className="text-[#2176FF] hover:text-[#1966E6] mb-4 inline-flex items-center gap-2"
         >
           ← Back to Hostels
@@ -135,7 +145,7 @@ const HostelEdit: React.FC = () => {
       {/* Use AddHostelForm component for editing */}
       <AddHostelForm
         isOpen={isFormOpen}
-        onClose={() => navigate(ROUTES.HOSTEL)}
+        onClose={() => navigate(`${rolePrefix}/hostel`)}
         onSubmit={handleSubmit}
         editingHostel={hostel}
       />

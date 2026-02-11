@@ -508,7 +508,7 @@ const FinanceDashboard: React.FC = () => {
                     <XAxis dataKey="month" stroke="#64748b" style={{ fontSize: '12px' }} />
                     <YAxis stroke="#64748b" style={{ fontSize: '12px' }} />
                     <Tooltip
-                      formatter={(value: number) => formatCurrency(value)}
+                      formatter={(value: number) => formatCurrency(value, currencySymbol)}
                       contentStyle={{
                         backgroundColor: 'white',
                         border: '1px solid #e2e8f0',
@@ -566,7 +566,7 @@ const FinanceDashboard: React.FC = () => {
                               />
                               <span className="text-slate-600">{item.name}</span>
                             </div>
-                            <span className="font-medium text-slate-900">{formatCurrency(item.value)}</span>
+                            <span className="font-medium text-slate-900">{formatCurrency(item.value, currencySymbol)}</span>
                           </div>
                         ))}
                       </div>
@@ -612,7 +612,7 @@ const FinanceDashboard: React.FC = () => {
                               />
                               <span className="text-slate-600">{item.name}</span>
                             </div>
-                            <span className="font-medium text-slate-900">{formatCurrency(item.value)}</span>
+                            <span className="font-medium text-slate-900">{formatCurrency(item.value, currencySymbol)}</span>
                           </div>
                         ))}
                       </div>
@@ -650,7 +650,7 @@ const FinanceDashboard: React.FC = () => {
                     <XAxis dataKey="month" stroke="#64748b" style={{ fontSize: '12px' }} />
                     <YAxis stroke="#64748b" style={{ fontSize: '12px' }} />
                     <Tooltip
-                      formatter={(value: number) => formatCurrency(value)}
+                      formatter={(value: number) => formatCurrency(value, currencySymbol)}
                       contentStyle={{
                         backgroundColor: 'white',
                         border: '1px solid #e2e8f0',
@@ -683,13 +683,13 @@ const FinanceDashboard: React.FC = () => {
           <div className="bg-blue-50 p-4 rounded-lg">
             <p className="text-sm text-blue-900 mb-2">Break Even Revenue</p>
             <p className="text-2xl font-bold text-blue-600">
-              {formatCurrency(breakEven.breakEvenRevenue)}
+              {formatCurrency(breakEven.breakEvenRevenue, currencySymbol)}
             </p>
           </div>
           <div className="bg-green-50 p-4 rounded-lg">
             <p className="text-sm text-green-900 mb-2">Margin of Safety</p>
             <p className="text-2xl font-bold text-green-600">
-              {formatCurrency(breakEven.marginOfSafety)}
+              {formatCurrency(breakEven.marginOfSafety, currencySymbol)}
             </p>
             <p className="text-xs text-green-700 mt-1">
               ({breakEven.marginOfSafetyPercent.toFixed(1)}%)
@@ -698,7 +698,7 @@ const FinanceDashboard: React.FC = () => {
           <div className="bg-purple-50 p-4 rounded-lg">
             <p className="text-sm text-purple-900 mb-2">Contribution Margin</p>
             <p className="text-2xl font-bold text-purple-600">
-              {formatCurrency(breakEven.contributionMargin)}
+              {formatCurrency(breakEven.contributionMargin, currencySymbol)}
             </p>
           </div>
           <div className="bg-indigo-50 p-4 rounded-lg">
@@ -745,21 +745,21 @@ const FinanceDashboard: React.FC = () => {
           <div className="bg-gray-50 p-4 rounded-lg">
             <p className="text-sm text-slate-600 mb-2">Monthly Bills</p>
             <p className="text-2xl font-bold text-slate-900">
-              {formatCurrency(displayKPIs.monthlyBills)}
+              {formatCurrency(displayKPIs.monthlyBills, currencySymbol)}
             </p>
             <p className="text-xs text-slate-500 mt-1">Total Revenue</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <p className="text-sm text-slate-600 mb-2">Monthly Rent</p>
             <p className="text-2xl font-bold text-slate-900">
-              {formatCurrency(displayKPIs.monthlyRent)}
+              {formatCurrency(displayKPIs.monthlyRent, currencySymbol)}
             </p>
             <p className="text-xs text-slate-500 mt-1">Per Unit/Month</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <p className="text-sm text-slate-600 mb-2">Total Payable</p>
             <p className="text-2xl font-bold text-slate-900">
-              {formatCurrency(displayKPIs.totalPayable)}
+              {formatCurrency(displayKPIs.totalPayable, currencySymbol)}
             </p>
             <p className="text-xs text-slate-500 mt-1">Total Rent Due</p>
           </div>

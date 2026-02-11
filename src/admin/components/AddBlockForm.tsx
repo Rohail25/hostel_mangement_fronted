@@ -4,6 +4,7 @@ import { Button } from './Button';
 import { Select } from './Select';
 import { api } from '../../services/apiClient';
 import { API_ROUTES } from '../../services/api.config';
+import { useAuth } from '../context/AuthContext';
 
 interface AddBlockFormProps {
   isOpen: boolean;
@@ -24,6 +25,9 @@ export const AddBlockForm: React.FC<AddBlockFormProps> = ({
   hostelId,
   onSubmit,
 }) => {
+  const { user } = useAuth();
+  const isOwner = user?.roleType === 'owner';
+  const floorRoutes = isOwner ? API_ROUTES.OWNER.FLOOR : API_ROUTES.FLOOR;
   const [formData, setFormData] = useState({
     floorNumber: '',
     floorName: '',
@@ -44,7 +48,7 @@ export const AddBlockForm: React.FC<AddBlockFormProps> = ({
   const loadExistingFloors = async () => {
     try {
       setLoadingFloors(true);
-      const response = await api.get(API_ROUTES.FLOOR.BY_HOSTEL(hostelId));
+      const response = await api.get(floorRoutes.BY_HOSTEL(hostelId));
       if (response.success && response.data) {
         const floors = Array.isArray(response.data) ? response.data : response.data.items || [];
         setExistingFloors(floors);
@@ -106,6 +110,7 @@ export const AddBlockForm: React.FC<AddBlockFormProps> = ({
     try {
       const payload = {
         hostel: hostelId,
+        hostelId,
         floorNumber: parseInt(formData.floorNumber),
         floorName: formData.floorName.trim(),
         description: formData.description.trim() || undefined,
@@ -113,7 +118,7 @@ export const AddBlockForm: React.FC<AddBlockFormProps> = ({
 
       console.log('📡 Creating block (floor):', payload);
 
-      const response = await api.post(API_ROUTES.FLOOR.CREATE, payload);
+      const response = await api.post(floorRoutes.CREATE, payload);
 
       if (response.success) {
         console.log('✅ Block created successfully:', response);

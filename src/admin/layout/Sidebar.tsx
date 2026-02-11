@@ -14,30 +14,156 @@ import {
   BuildingStorefrontIcon,
 } from "@heroicons/react/24/outline";
 import ROUTES from "../routes/routePaths";
+import { useAuth } from "../context/AuthContext";
+import { canSeeSidebarTab } from "../../utils/sidebarPermissions";
 
 interface NavItem {
+  key: string; // Unique key for permission checking
   label: string;
   path: string;
   icon: React.ComponentType<{ className?: string }>;
   children?: NavItem[];
+  requiredPermission?: { resource: string; action: string };
+  allowedRoles?: string[]; // Roles that can see this item
 }
 
-const navItems: NavItem[] = [
-  { label: "Overview", path: ROUTES.OVERVIEW, icon: ChartBarIcon },
-  { label: "People", path: ROUTES.PEOPLE, icon: UsersIcon },
-  { label: "Vendor Management", path: ROUTES.VENDOR_MANAGEMENT, icon: BuildingStorefrontIcon },
-  { label: "Accounts", path: ROUTES.ACCOUNTS, icon: CurrencyDollarIcon },
-  { label: "Hostel Management", path: ROUTES.HOSTEL, icon: BuildingOfficeIcon },
-  { label: "Alerts", path: ROUTES.ALERTS, icon: BellAlertIcon },
-  { label: "Communication", path: ROUTES.COMM, icon: ChatBubbleLeftRightIcon },
-  { label: "FP&A", path: ROUTES.FPA, icon: PresentationChartLineIcon },
-  { label: "Settings", path: ROUTES.SETTINGS, icon: Cog6ToothIcon },
+// Base navigation items with role and permission requirements
+const baseNavItems: NavItem[] = [
+  { 
+    key: 'overview',
+    label: "Overview", 
+    path: ROUTES.OVERVIEW, 
+    icon: ChartBarIcon,
+    allowedRoles: ['admin', 'owner', 'employee']
+  },
+  { 
+    key: 'people',
+    label: "People", 
+    path: ROUTES.PEOPLE, 
+    icon: UsersIcon,
+    allowedRoles: ['admin', 'owner', 'employee'],
+    requiredPermission: { resource: 'people', action: 'view_list' }
+  },
+  { 
+    key: 'vendorManagement',
+    label: "Vendor Management", 
+    path: ROUTES.VENDOR_MANAGEMENT, 
+    icon: BuildingStorefrontIcon,
+    allowedRoles: ['admin'],
+    requiredPermission: { resource: 'vendor_management', action: 'view_list' }
+  },
+  { 
+    key: 'accounts',
+    label: "Accounts", 
+    path: ROUTES.ACCOUNTS, 
+    icon: CurrencyDollarIcon,
+    allowedRoles: ['admin'],
+    requiredPermission: { resource: 'accounts', action: 'view_list' }
+  },
+  { 
+    key: 'hostelManagement',
+    label: "Hostel Management", 
+    path: ROUTES.HOSTEL, 
+    icon: BuildingOfficeIcon,
+    allowedRoles: ['admin', 'owner', 'employee'],
+    requiredPermission: { resource: 'hostel_management', action: 'view_list' }
+  },
+  { 
+    key: 'alerts',
+    label: "Alerts", 
+    path: ROUTES.ALERTS, 
+    icon: BellAlertIcon,
+    allowedRoles: ['admin'],
+    requiredPermission: { resource: 'alerts', action: 'view_list' }
+  },
+  { 
+    key: 'communication',
+    label: "Communication", 
+    path: ROUTES.COMM, 
+    icon: ChatBubbleLeftRightIcon,
+    allowedRoles: ['admin'],
+    requiredPermission: { resource: 'communication', action: 'view_list' }
+  },
+  { 
+    key: 'fpa',
+    label: "FP&A", 
+    path: ROUTES.FPA, 
+    icon: PresentationChartLineIcon,
+    allowedRoles: ['admin'],
+    requiredPermission: { resource: 'fpa', action: 'view_list' }
+  },
+  { 
+    key: 'settings',
+    label: "Settings", 
+    path: ROUTES.SETTINGS, 
+    icon: Cog6ToothIcon,
+    allowedRoles: ['admin', 'owner', 'employee']
+  },
 ];
 
 export default function Sidebar({ isCollapsed }: { isCollapsed: boolean }) {
   const location = useLocation();
+  const { user, hasPermission } = useAuth();
+  
   // Check if People section is active to conditionally hide labels
   const isPeopleActive = location.pathname.startsWith(ROUTES.PEOPLE);
+  
+  // Get user's role type
+  const userRoleType = user?.roleType || 'user';
+  const isAdmin = user?.isAdmin || false;
+  
+  /**
+   * Filter navigation items based on role and permissions
+   * Rules:
+   * - Admin: See all tabs
+   * - Owner: See all tabs (data filtered by backend)
+   * - Employee: Only see tabs they have permissions for
+   */
+  const getFilteredNavItems = (): NavItem[] => {
+    // Admin and Owner can see all tabs
+    if (isAdmin || userRoleType === 'admin' || userRoleType === 'owner') {
+      return baseNavItems;
+    }
+    
+    // For employees and other roles, filter based on permissions
+    return baseNavItems.filter(item => {
+      // Check if user has permission to see this tab
+      return canSeeSidebarTab(
+        item.key,
+        userRoleType,
+        isAdmin,
+        hasPermission,
+        true // This is main sidebar
+      );
+    });
+  };
+  
+  const navItems = getFilteredNavItems();
+  
+  // Get role-specific route prefix
+  const getRoutePrefix = (): string => {
+    switch (userRoleType) {
+      case 'admin':
+        return '/admin';
+      case 'owner':
+        return '/owner';
+      case 'employee':
+        return '/employee';
+      default:
+        return '/user';
+    }
+  };
+  
+  const routePrefix = getRoutePrefix();
+  
+  // Adjust paths based on current role
+  const adjustPath = (path: string): string => {
+    // If path starts with /admin but user is not admin, replace with role prefix
+    if (path.startsWith('/admin') && userRoleType !== 'admin') {
+      return path.replace('/admin', routePrefix);
+    }
+    return path;
+  };
 
   /**
    * Sidebar Component:
@@ -109,16 +235,18 @@ export default function Sidebar({ isCollapsed }: { isCollapsed: boolean }) {
       <nav className="flex-1 overflow-y-auto py-2 px-4 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
+          const adjustedPath = adjustPath(item.path);
+          const isPeopleRoute = adjustedPath.includes('/people');
 
           return (
-            <React.Fragment key={item.path}>
+            <React.Fragment key={adjustedPath}>
               <NavLink
-                to={item.path}
+                to={adjustedPath}
                 className={({ isActive: navIsActive }) =>
                   `w-full flex items-center ${
                     isPeopleActive ? "justify-center" : (isCollapsed ? "justify-center" : "justify-start")
                   } px-4 py-3 rounded-lg text-base font-normal text-white transition-all duration-200 ${
-                    navIsActive || (item.path === ROUTES.PEOPLE && isPeopleActive)
+                    navIsActive || (isPeopleRoute && isPeopleActive)
                       ? "bg-[#2176FF] text-white"
                       : "hover:bg-white/10 text-white"
                   }`
@@ -144,7 +272,7 @@ export default function Sidebar({ isCollapsed }: { isCollapsed: boolean }) {
       <div className="p-4 border-t border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center font-semibold">
-            AD
+            {user?.username?.charAt(0).toUpperCase() || 'U'}
           </div>
           <AnimatePresence>
             {!isCollapsed && !isPeopleActive && (
@@ -155,8 +283,8 @@ export default function Sidebar({ isCollapsed }: { isCollapsed: boolean }) {
                 transition={{ duration: 0.3 }}
                 className="overflow-hidden"
               >
-                <p className="text-sm font-medium text-white">Admin User</p>
-                <p className="text-xs text-white/70">admin@hostel.com</p>
+                <p className="text-sm font-medium text-white">{user?.username || 'User'}</p>
+                <p className="text-xs text-white/70">{user?.email || ''}</p>
               </motion.div>
             )}
           </AnimatePresence>

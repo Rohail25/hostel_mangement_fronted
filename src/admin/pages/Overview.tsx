@@ -7,6 +7,8 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { StatCard } from '../components/StatCard';
 import { formatCurrency } from '../types/common';
+import { useAuth } from '../context/AuthContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { 
   ComposedChart, 
   Bar, 
@@ -38,13 +40,200 @@ import { Button } from '../components/Button';
 import { getOverviewDashboard, type OverviewDashboardResponse } from '../services/dashboard.service';
 import { getUnassignedAlertsAPI } from '../services/alert.service';
 import jsPDF from 'jspdf';
+import { api } from '../../services/apiClient';
+import { addPDFBranding, addPDFHeader } from '../utils/pdfExport';
+
+const DEFAULT_DASHBOARD_DATA: OverviewDashboardResponse['data'] = {
+  summaryCards: [],
+  overview: {
+    occupancy: {
+      occupied: 0,
+      vacant: 0,
+      occupiedPercent: 0,
+      vacantPercent: 0,
+      growth: '0%',
+      totalUnits: 0,
+      occupiedUnits: 0,
+    },
+    monthlyRevenue: {
+      current: 0,
+      growth: '0%',
+      formatted: '0',
+    },
+    activeTenants: {
+      count: 0,
+      growth: '0%',
+    },
+    activeVendors: {
+      count: 0,
+      growth: '0%',
+    },
+    openAlerts: {
+      count: 0,
+      growth: '0%',
+    },
+    pendingPayments: {
+      count: 0,
+      growth: '0%',
+    },
+  },
+  profitLoss: {
+    totalNetIncome: 0,
+    series: [],
+  },
+  employeeActivityLog: {
+    total: 0,
+    items: [],
+  },
+  transactions: {
+    payable: {
+      totalAmount: 0,
+      totalFormatted: '0',
+      count: 0,
+      items: [],
+    },
+    receivable: {
+      totalAmount: 0,
+      totalFormatted: '0',
+      count: 0,
+      items: [],
+    },
+  },
+  recentBills: [],
+  recentMaintenance: [],
+  unpaidRent: {
+    totalAmount: 0,
+    totalFormatted: '0',
+    aging: [],
+    tenants: [],
+    summary: {
+      paidCount: 0,
+      unpaidCount: 0,
+    },
+  },
+  checkInCheckOut: {
+    checkIns: {
+      count: 0,
+      period: '',
+    },
+    checkOuts: {
+      count: 0,
+      period: '',
+    },
+    total: 0,
+  },
+  meta: {
+    hostelId: null,
+    currency: 'NGN',
+    generatedAt: '',
+  },
+};
+
+const normalizeDashboardData = (
+  data?: Partial<OverviewDashboardResponse['data']> | null
+): OverviewDashboardResponse['data'] => {
+  const source = data || {};
+
+  return {
+    ...DEFAULT_DASHBOARD_DATA,
+    ...source,
+    summaryCards: Array.isArray(source.summaryCards) ? source.summaryCards : [],
+    overview: {
+      ...DEFAULT_DASHBOARD_DATA.overview,
+      ...(source.overview || {}),
+      occupancy: {
+        ...DEFAULT_DASHBOARD_DATA.overview.occupancy,
+        ...(source.overview?.occupancy || {}),
+      },
+      monthlyRevenue: {
+        ...DEFAULT_DASHBOARD_DATA.overview.monthlyRevenue,
+        ...(source.overview?.monthlyRevenue || {}),
+      },
+      activeTenants: {
+        ...DEFAULT_DASHBOARD_DATA.overview.activeTenants,
+        ...(source.overview?.activeTenants || {}),
+      },
+      activeVendors: {
+        ...DEFAULT_DASHBOARD_DATA.overview.activeVendors,
+        ...(source.overview?.activeVendors || {}),
+      },
+      openAlerts: {
+        ...DEFAULT_DASHBOARD_DATA.overview.openAlerts,
+        ...(source.overview?.openAlerts || {}),
+      },
+      pendingPayments: {
+        ...DEFAULT_DASHBOARD_DATA.overview.pendingPayments,
+        ...(source.overview?.pendingPayments || {}),
+      },
+    },
+    profitLoss: {
+      ...DEFAULT_DASHBOARD_DATA.profitLoss,
+      ...(source.profitLoss || {}),
+      series: Array.isArray(source.profitLoss?.series) ? source.profitLoss!.series : [],
+    },
+    employeeActivityLog: {
+      ...DEFAULT_DASHBOARD_DATA.employeeActivityLog,
+      ...(source.employeeActivityLog || {}),
+      items: Array.isArray(source.employeeActivityLog?.items)
+        ? source.employeeActivityLog!.items
+        : [],
+    },
+    transactions: {
+      payable: {
+        ...DEFAULT_DASHBOARD_DATA.transactions.payable,
+        ...(source.transactions?.payable || {}),
+        items: Array.isArray(source.transactions?.payable?.items)
+          ? source.transactions!.payable!.items
+          : [],
+      },
+      receivable: {
+        ...DEFAULT_DASHBOARD_DATA.transactions.receivable,
+        ...(source.transactions?.receivable || {}),
+        items: Array.isArray(source.transactions?.receivable?.items)
+          ? source.transactions!.receivable!.items
+          : [],
+      },
+    },
+    recentBills: Array.isArray(source.recentBills) ? source.recentBills : [],
+    recentMaintenance: Array.isArray(source.recentMaintenance) ? source.recentMaintenance : [],
+    unpaidRent: {
+      ...DEFAULT_DASHBOARD_DATA.unpaidRent,
+      ...(source.unpaidRent || {}),
+      aging: Array.isArray(source.unpaidRent?.aging) ? source.unpaidRent!.aging : [],
+      tenants: Array.isArray(source.unpaidRent?.tenants) ? source.unpaidRent!.tenants : [],
+      summary: {
+        ...DEFAULT_DASHBOARD_DATA.unpaidRent.summary,
+        ...(source.unpaidRent?.summary || {}),
+      },
+    },
+    checkInCheckOut: {
+      ...DEFAULT_DASHBOARD_DATA.checkInCheckOut,
+      ...(source.checkInCheckOut || {}),
+      checkIns: {
+        ...DEFAULT_DASHBOARD_DATA.checkInCheckOut.checkIns,
+        ...(source.checkInCheckOut?.checkIns || {}),
+      },
+      checkOuts: {
+        ...DEFAULT_DASHBOARD_DATA.checkInCheckOut.checkOuts,
+        ...(source.checkInCheckOut?.checkOuts || {}),
+      },
+    },
+    meta: {
+      ...DEFAULT_DASHBOARD_DATA.meta,
+      ...(source.meta || {}),
+    },
+  };
+};
 
 /**
  * Professional overview dashboard page
  */
 const Overview: React.FC = () => {
+  const { currencySymbol } = useCurrency();
+  const { user } = useAuth();
+  
   // API Data State
-  const [dashboardData, setDashboardData] = useState<OverviewDashboardResponse['data'] | null>(null);
+  const [dashboardData, setDashboardData] = useState<OverviewDashboardResponse['data']>(DEFAULT_DASHBOARD_DATA);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -58,34 +247,173 @@ const Overview: React.FC = () => {
   // Tab state for Bills & Maintenance
   const [activeRequestTab, setActiveRequestTab] = useState<'bills' | 'maintenance'>('bills');
 
-  // Fetch dashboard data on component mount
+  // Fetch dashboard data based on user role
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await getOverviewDashboard();
-        setDashboardData(data);
+        
+        // Only fetch if user is available
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+        
+        let data: any;
+        
+        // Check if user is owner
+        if (user.roleType === 'owner') {
+          // Call owner-specific endpoint
+          try {
+            const response = await api.get('/owner/dashboard/overview');
+            
+            // Backend returns: { success: true, data: { hostels, tenants, bookings, payments, employees } }
+            const ownerData = response.data?.data || response.data;
+            
+            if (!ownerData || !ownerData.hostels) {
+              throw new Error('Invalid owner dashboard response');
+            }
+            
+            // Transform owner data to match admin dashboard format
+            data = {
+              summaryCards: [
+                {
+                  key: 'activeTenants',
+                  title: 'Active Tenants',
+                  value: ownerData.tenants?.total || 0,
+                  valueFormatted: (ownerData.tenants?.total || 0).toString(),
+                  changePercent: 0,
+                  changeFormatted: '0%',
+                  direction: 'flat',
+                  caption: 'Total tenants',
+                },
+                {
+                  key: 'monthlyRevenue',
+                  title: 'Monthly Revenue',
+                  value: ownerData.payments?.totalCollected || 0,
+                  valueFormatted: formatCurrency(ownerData.payments?.totalCollected || 0, currencySymbol),
+                  changePercent: 0,
+                  changeFormatted: '0%',
+                  direction: 'flat',
+                  caption: 'Collected this month',
+                },
+                {
+                  key: 'activeVendors',
+                  title: 'Employees',
+                  value: ownerData.employees?.total || 0,
+                  valueFormatted: (ownerData.employees?.total || 0).toString(),
+                  changePercent: 0,
+                  changeFormatted: '0%',
+                  direction: 'flat',
+                  caption: 'Active employees',
+                },
+                {
+                  key: 'occupancyRate',
+                  title: 'Occupancy Rate',
+                  value: ownerData.hostels?.occupancyRate || 0,
+                  valueFormatted: `${ownerData.hostels?.occupancyRate || 0}%`,
+                  changePercent: 0,
+                  changeFormatted: '0%',
+                  direction: 'flat',
+                  caption: 'Current occupancy',
+                }
+              ],
+              profitLoss: { 
+                series: [], 
+                totalNetIncome: (ownerData.payments?.totalCollected || 0) - ((ownerData.payments?.totalAmount || 0) - (ownerData.payments?.totalCollected || 0))
+              },
+              transactions: {
+                payable: { items: [] },
+                receivable: { items: ownerData.payments?.list || [] }
+              },
+              activities: ownerData.bookings?.list || []
+            };
+          } catch (ownerError) {
+            console.error('Error fetching owner dashboard:', ownerError);
+            // Fall back to empty data
+            data = {
+              summaryCards: [],
+              profitLoss: { series: [], totalNetIncome: 0 },
+              transactions: { payable: { items: [] }, receivable: { items: [] } },
+              activities: []
+            };
+          }
+        } else if (user.roleType === 'admin') {
+          // Admin uses original endpoint
+          try {
+            data = await getOverviewDashboard();
+          } catch (adminError) {
+            console.error('Error fetching admin dashboard:', adminError);
+            // Fall back to empty data instead of crashing
+            data = {
+              summaryCards: [],
+              profitLoss: { series: [], totalNetIncome: 0 },
+              transactions: { payable: { items: [] }, receivable: { items: [] } },
+              activities: []
+            };
+          }
+        } else {
+          // Other roles can use a simplified dashboard
+          data = {
+            summaryCards: [],
+            profitLoss: { series: [], totalNetIncome: 0 },
+            transactions: { payable: { items: [] }, receivable: { items: [] } },
+            activities: []
+          };
+        }
+        
+        setDashboardData(normalizeDashboardData(data));
       } catch (err: any) {
         console.error('Error fetching dashboard data:', err);
-        setError(err.message || 'Failed to load dashboard data');
+        // Don't throw error - just set empty data and let user see the page
+        setError(null); // Clear error to prevent logout
+        setDashboardData(normalizeDashboardData(null));
       } finally {
         setLoading(false);
       }
     };
 
     fetchDashboardData();
-  }, []);
+  }, [user]);
 
   // Fetch unassigned alerts on component mount
   useEffect(() => {
     const fetchUnassignedAlerts = async () => {
       try {
         setLoadingAlerts(true);
-        const response = await getUnassignedAlertsAPI({ limit: 10, status: 'open' });
-        setUnassignedAlerts(response.data.alerts || []);
+        
+        // Only fetch if user is available
+        if (!user) {
+          setLoadingAlerts(false);
+          return;
+        }
+        
+        if (user.roleType === 'owner') {
+          // Fetch activity logs for owner
+          try {
+            const response = await api.get('/owner/dashboard/activity-log');
+            // Backend returns: { success: true, data: [...activity logs] }
+            const activityLogs = response.data?.data || response.data || [];
+            setUnassignedAlerts(Array.isArray(activityLogs) ? activityLogs : []);
+          } catch (err: any) {
+            console.error('Error fetching owner activity logs:', err);
+            setUnassignedAlerts([]);
+          }
+        } else if (user.roleType === 'admin') {
+          // Fetch alerts for admin
+          try {
+            const response = await getUnassignedAlertsAPI({ limit: 10, status: 'open' });
+            setUnassignedAlerts(response.data?.alerts || []);
+          } catch (err: any) {
+            console.error('Error fetching alerts:', err);
+            setUnassignedAlerts([]);
+          }
+        } else {
+          setUnassignedAlerts([]);
+        }
       } catch (err: any) {
-        console.error('Error fetching unassigned alerts:', err);
+        console.error('Error fetching alerts/activity:', err);
         setUnassignedAlerts([]);
       } finally {
         setLoadingAlerts(false);
@@ -93,7 +421,7 @@ const Overview: React.FC = () => {
     };
 
     fetchUnassignedAlerts();
-  }, []);
+  }, [user]);
 
   // Get stats from API data
   const stats = useMemo(() => {
@@ -121,20 +449,20 @@ const Overview: React.FC = () => {
 
   // Get Profit & Loss data from API
   const profitLossData = useMemo(() => {
-    if (!dashboardData) return [];
-    return dashboardData.profitLoss.series;
+    if (!dashboardData || !dashboardData.profitLoss) return [];
+    return dashboardData.profitLoss.series || [];
   }, [dashboardData]);
 
   // Get Net Income from API
   const netIncome = useMemo(() => {
-    if (!dashboardData) return 0;
-    return dashboardData.profitLoss.totalNetIncome;
+    if (!dashboardData || !dashboardData.profitLoss) return 0;
+    return dashboardData.profitLoss.totalNetIncome || 0;
   }, [dashboardData]);
 
   // Get paid transactions from API
   const paidTransactions = useMemo(() => {
-    if (!dashboardData) return [];
-    return dashboardData.transactions.payable.items.map(transaction => {
+    if (!dashboardData || !dashboardData.transactions?.payable?.items) return [];
+    return (dashboardData.transactions.payable.items || []).map(transaction => {
         const daysAgo = Math.floor((Date.now() - new Date(transaction.date).getTime()) / (1000 * 60 * 60 * 24));
         return {
           ...transaction,
@@ -145,8 +473,8 @@ const Overview: React.FC = () => {
 
   // Get recent payments received from API
   const recentPaymentsReceived = useMemo(() => {
-    if (!dashboardData) return [];
-    return dashboardData.transactions.receivable.items.map(payment => {
+    if (!dashboardData || !dashboardData.transactions?.receivable?.items) return [];
+    return (dashboardData.transactions.receivable.items || []).map(payment => {
         const daysAgo = Math.floor((Date.now() - new Date(payment.date).getTime()) / (1000 * 60 * 60 * 24));
         return {
           ...payment,
@@ -158,8 +486,11 @@ const Overview: React.FC = () => {
   // Get employee activity log from API
   const activityLog = useMemo(() => {
     if (!dashboardData) return [];
-    return dashboardData.employeeActivityLog.items.map(activity => {
-        const hoursAgo = Math.floor((Date.now() - new Date(activity.timestamp).getTime()) / (1000 * 60 * 60));
+    // Handle both admin format (employeeActivityLog) and owner format (activities)
+    const items = dashboardData.employeeActivityLog?.items || dashboardData.activities || [];
+    return (items || []).map((activity: any) => {
+        const timestamp = activity.timestamp || activity.createdAt;
+        const hoursAgo = Math.floor((Date.now() - new Date(timestamp).getTime()) / (1000 * 60 * 60));
         const daysAgo = Math.floor(hoursAgo / 24);
         return {
           ...activity,
@@ -199,8 +530,8 @@ const Overview: React.FC = () => {
 
   // Get recent bills from API
   const recentBills = useMemo(() => {
-    if (!dashboardData) return [];
-    return dashboardData.recentBills.map(bill => {
+    if (!dashboardData || !dashboardData.recentBills) return [];
+    return (dashboardData.recentBills || []).map(bill => {
         const daysAgo = Math.floor((Date.now() - new Date(bill.date).getTime()) / (1000 * 60 * 60 * 24));
         return {
           ...bill,
@@ -213,8 +544,8 @@ const Overview: React.FC = () => {
 
   // Get recent maintenance from API
   const recentMaintenance = useMemo(() => {
-    if (!dashboardData) return [];
-    return dashboardData.recentMaintenance.map(req => {
+    if (!dashboardData || !dashboardData.recentMaintenance) return [];
+    return (dashboardData.recentMaintenance || []).map(req => {
         const daysAgo = Math.floor((Date.now() - new Date(req.createdAt).getTime()) / (1000 * 60 * 60 * 24));
         return {
           ...req,
@@ -225,22 +556,22 @@ const Overview: React.FC = () => {
 
   // Get unpaid rent data from API
   const unpaidRentData = useMemo(() => {
-    if (!dashboardData) return [];
-    return dashboardData.unpaidRent.aging;
+    if (!dashboardData || !dashboardData.unpaidRent) return [];
+    return dashboardData.unpaidRent.aging || [];
   }, [dashboardData]);
 
   // Get tenants with unpaid rent from API
   const tenantsWithUnpaidRent = useMemo(() => {
-    if (!dashboardData) return [];
-    return dashboardData.unpaidRent.tenants;
+    if (!dashboardData || !dashboardData.unpaidRent) return [];
+    return dashboardData.unpaidRent.tenants || [];
   }, [dashboardData]);
 
   // Get tenant payment status summary from API
   const allTenantsWithPaymentStatus = useMemo(() => {
-    if (!dashboardData) return [];
+    if (!dashboardData || !dashboardData.unpaidRent || !dashboardData.unpaidRent.summary) return [];
     // Create a mock array for the summary display
-    const paidCount = dashboardData.unpaidRent.summary.paidCount;
-    const unpaidCount = dashboardData.unpaidRent.summary.unpaidCount;
+    const paidCount = dashboardData.unpaidRent.summary?.paidCount || 0;
+    const unpaidCount = dashboardData.unpaidRent.summary?.unpaidCount || 0;
     return Array(paidCount + unpaidCount).fill(null).map((_, i) => ({
       id: i + 1,
       hasUnpaidRent: i >= paidCount,
@@ -249,15 +580,15 @@ const Overview: React.FC = () => {
 
   // Get total unpaid rent from API
   const totalUnpaidRent = useMemo(() => {
-    if (!dashboardData) return 0;
-    return dashboardData.unpaidRent.totalAmount;
+    if (!dashboardData || !dashboardData.unpaidRent) return 0;
+    return dashboardData.unpaidRent.totalAmount || 0;
   }, [dashboardData]);
 
   // Get check in/out data from API
   const checkInCheckOutData = useMemo(() => {
-    if (!dashboardData) return [];
-    const checkIns = dashboardData.checkInCheckOut.checkIns.count;
-    const checkOuts = dashboardData.checkInCheckOut.checkOuts.count;
+    if (!dashboardData || !dashboardData.checkInCheckOut) return [];
+    const checkIns = dashboardData.checkInCheckOut.checkIns?.count || 0;
+    const checkOuts = dashboardData.checkInCheckOut.checkOuts?.count || 0;
     const total = checkIns + checkOuts;
     const checkInPercentage = total > 0 ? Math.round((checkIns / total) * 100) : 0;
     const checkOutPercentage = total > 0 ? Math.round((checkOuts / total) * 100) : 0;
@@ -373,7 +704,12 @@ const Overview: React.FC = () => {
   const handleExportPDF = () => {
     try {
       const doc = new jsPDF();
-      let yPos = 20;
+      
+      // Add branding (watermark, logo, center text, user name)
+      const userName = user?.username || 'User';
+      addPDFBranding(doc, userName);
+      
+      let yPos = 35; // Start after header
       
       // Title
       doc.setFontSize(18);
@@ -397,7 +733,7 @@ const Overview: React.FC = () => {
       yPos += 6;
       doc.text(`Active Tenants: ${tenantsCard?.valueFormatted || stats.activeTenants.toString()}`, 20, yPos);
       yPos += 6;
-      doc.text(`Monthly Revenue: ${revenueCard?.valueFormatted || formatCurrency(stats.monthlyRevenue)}`, 20, yPos);
+      doc.text(`Monthly Revenue: ${revenueCard?.valueFormatted || formatCurrency(stats.monthlyRevenue, currencySymbol)}`, 20, yPos);
       yPos += 6;
       doc.text(`Active Vendors: ${vendorsCard?.valueFormatted || stats.activeVendors.toString()}`, 20, yPos);
       yPos += 10;
@@ -410,7 +746,7 @@ const Overview: React.FC = () => {
       
       doc.setFontSize(10);
       doc.setFont(undefined, 'normal');
-      doc.text(`Net Income: ${formatCurrency(netIncome)} (Last 3 months)`, 20, yPos);
+      doc.text(`Net Income: ${formatCurrency(netIncome, currencySymbol)} (Last 3 months)`, 20, yPos);
       yPos += 10;
       
       // Transactions Summary
@@ -434,7 +770,7 @@ const Overview: React.FC = () => {
       
       doc.setFontSize(10);
       doc.setFont(undefined, 'normal');
-      doc.text(`Total Unpaid Rent: ${formatCurrency(totalUnpaidRent)}`, 20, yPos);
+      doc.text(`Total Unpaid Rent: ${formatCurrency(totalUnpaidRent, currencySymbol)}`, 20, yPos);
       yPos += 6;
       doc.text(`Tenants with Unpaid Rent: ${tenantsWithUnpaidRent.length}`, 20, yPos);
       yPos += 10;
@@ -461,6 +797,15 @@ const Overview: React.FC = () => {
       doc.setFontSize(10);
       doc.setFont(undefined, 'normal');
       doc.text(`Total: ${checkInCheckOutTotal.toLocaleString()} (Last 30 days / Next 30 days)`, 20, yPos);
+      
+      // Add header to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        if (i > 1) {
+          addPDFHeader(doc, userName);
+        }
+      }
       
       // Save PDF
       doc.save(`overview-report-${new Date().toISOString().split('T')[0]}.pdf`);
@@ -561,7 +906,7 @@ const Overview: React.FC = () => {
         {/* Row 2 - Card 3 */}
         <StatCard
           title={revenueCard?.title || "Monthly Revenue"}
-          value={revenueCard?.valueFormatted || formatCurrency(stats.monthlyRevenue)}
+          value={revenueCard?.valueFormatted || formatCurrency(stats.monthlyRevenue, currencySymbol)}
           icon={<CurrencyDollarIcon className="w-6 h-6 text-white" />}
           variant="success"
           trend={{
@@ -592,7 +937,7 @@ const Overview: React.FC = () => {
           <div className="mb-4">
             <h2 className="text-xl font-bold text-slate-900 mb-2">Profit & loss</h2>
             <p className="text-sm text-slate-600">
-              Net Income: <span className="font-semibold text-slate-900">{formatCurrency(netIncome)}</span> (Last 3 months to date)
+              Net Income: <span className="font-semibold text-slate-900">{formatCurrency(netIncome, currencySymbol)}</span> (Last 3 months to date)
             </p>
           </div>
           <ResponsiveContainer width="100%" height={300}>
@@ -608,7 +953,7 @@ const Overview: React.FC = () => {
               />
               <YAxis stroke="#64748b" style={{ fontSize: '12px' }} />
               <Tooltip
-                formatter={(value: number) => formatCurrency(value)}
+                formatter={(value: number) => formatCurrency(value, currencySymbol)}
                 contentStyle={{
                   backgroundColor: 'white',
                   border: '1px solid #e2e8f0',
@@ -707,7 +1052,7 @@ const Overview: React.FC = () => {
                         : 'text-red-600'
                     }`}>
                       {transaction.type === 'Rent' || transaction.type === 'Deposit' ? '+' : '-'}
-                      {formatCurrency(transaction.amount)}
+                      {formatCurrency(transaction.amount, currencySymbol)}
                     </p>
                     <p className="text-xs text-slate-500">{transaction.ref}</p>
                   </div>
@@ -747,7 +1092,7 @@ const Overview: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-green-600">
-                      +{formatCurrency(payment.amount)}
+                      +{formatCurrency(payment.amount, currencySymbol)}
                     </p>
                     <p className="text-xs text-slate-500">{payment.ref}</p>
                   </div>
@@ -820,7 +1165,7 @@ const Overview: React.FC = () => {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-slate-900">{formatCurrency(bill.amount)}</p>
+                    <p className="font-semibold text-slate-900">{formatCurrency(bill.amount, currencySymbol)}</p>
                     <span className={`px-2 py-1 rounded-md text-xs font-medium border ${getStatusColor(bill.status)}`}>
                       {bill.status}
                     </span>
@@ -960,7 +1305,7 @@ const Overview: React.FC = () => {
           <div className="mb-4">
             <h2 className="text-xl font-bold text-slate-900 mb-2">Unpaid rent</h2>
             <p className="text-sm text-slate-600">
-              Total: <span className="font-semibold text-slate-900">{formatCurrency(totalUnpaidRent)}</span>
+              Total: <span className="font-semibold text-slate-900">{formatCurrency(totalUnpaidRent, currencySymbol)}</span>
             </p>
           </div>
           <ResponsiveContainer width="100%" height={250}>
@@ -969,7 +1314,7 @@ const Overview: React.FC = () => {
               <XAxis type="number" stroke="#64748b" style={{ fontSize: '12px' }} />
               <YAxis dataKey="category" type="category" stroke="#64748b" style={{ fontSize: '12px' }} width={80} />
               <Tooltip
-                formatter={(value: number) => formatCurrency(value)}
+                formatter={(value: number) => formatCurrency(value, currencySymbol)}
                 contentStyle={{
                   backgroundColor: 'white',
                   border: '1px solid #e2e8f0',
@@ -983,7 +1328,7 @@ const Overview: React.FC = () => {
             {unpaidRentData.map((item) => (
               <div key={item.category} className="flex items-center justify-between text-sm">
                 <span className="text-slate-600">{item.category} days</span>
-                <span className="font-medium text-slate-900">{formatCurrency(item.amount)}</span>
+                <span className="font-medium text-slate-900">{formatCurrency(item.amount, currencySymbol)}</span>
               </div>
             ))}
           </div>
@@ -1024,7 +1369,7 @@ const Overview: React.FC = () => {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-red-600">{formatCurrency(tenant.amount)}</p>
+                      <p className="font-semibold text-red-600">{formatCurrency(tenant.amount, currencySymbol)}</p>
                     </div>
                   </motion.div>
                 ))}

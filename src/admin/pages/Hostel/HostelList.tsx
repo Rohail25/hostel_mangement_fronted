@@ -22,12 +22,16 @@ import ROUTES from '../../routes/routePaths';
 import * as hostelService from '../../services/hostel.service';
 import { api } from '../../../services/apiClient';
 import { API_ROUTES } from '../../../services/api.config';
+import { useAuth } from '../../context/AuthContext';
+import { getRolePrefix } from '../../../components/ProtectedRoute';
 
 /**
  * Hostel list page
  */
 const HostelList: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const rolePrefix = getRolePrefix(user?.roleType || 'user');
   const [hostels, setHostels] = useState<Hostel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -278,7 +282,7 @@ const HostelList: React.FC = () => {
     <div className="flex items-center gap-2">
       {/* View Button - Blue with icon */}
       <motion.button
-        onClick={() => navigate(`/admin/hostel/${hostel.id}`)}
+        onClick={() => navigate(`${rolePrefix}/hostel/${hostel.id}`)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-sm hover:shadow-md hover:from-blue-600 hover:to-blue-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
@@ -290,7 +294,7 @@ const HostelList: React.FC = () => {
 
       {/* Edit Button - Brand color with icon */}
       <motion.button
-        onClick={() => navigate(ROUTES.HOSTEL_EDIT(hostel.id))}
+        onClick={() => navigate(`${rolePrefix}/hostel/${hostel.id}/edit`)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-[#2176FF] to-[#1966E6] rounded-lg shadow-sm hover:shadow-md hover:from-[#1966E6] hover:to-[#1555CC] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#2176FF] focus:ring-offset-1"

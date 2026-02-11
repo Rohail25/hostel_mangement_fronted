@@ -3,7 +3,7 @@
  * Beautiful gradient topbar with search and notifications
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -12,7 +12,9 @@ import {
   ArrowRightOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 import ROUTES from '../routes/routePaths';
-import { logout } from '../../services/auth.service';
+import { useAuth } from '../context/AuthContext';
+import { getAlertsAPI } from '../services/alert.service';
+import { API_BASE_URL } from '../../services/api.config';
 
 interface TopbarProps {
   onToggleSidebar: () => void;
@@ -24,7 +26,32 @@ interface TopbarProps {
 export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [unresolvedAlertsCount, setUnresolvedAlertsCount] = useState(0);
+
+  // Fetch unresolved alerts count
+  useEffect(() => {
+    const fetchUnresolvedAlerts = async () => {
+      try {
+        const response = await getAlertsAPI({ status: 'open' });
+        if (response.success && response.data) {
+          // Count alerts that are not resolved
+          const unresolved = response.data.alerts?.filter(
+            (alert: any) => alert.rawStatus !== 'resolved' && alert.rawStatus !== 'dismissed'
+          ) || [];
+          setUnresolvedAlertsCount(unresolved.length);
+        }
+      } catch (error) {
+        console.error('Error fetching alerts:', error);
+      }
+    };
+
+    fetchUnresolvedAlerts();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchUnresolvedAlerts, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Handle logout
   const handleLogout = async () => {
@@ -33,18 +60,45 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
     setIsLoggingOut(true);
     
     try {
-      // Call logout API endpoint to destroy session on server
-      await logout();
-      
-      // Navigate to login page after successful logout
-      navigate('/login');
+      // Use AuthContext logout
+      logout();
     } catch (error) {
-      // Even if API call fails, clear local storage and navigate
       console.error('Logout error:', error);
-      navigate('/login');
     } finally {
       setIsLoggingOut(false);
     }
+  };
+
+  // Handle bell icon click - navigate to alerts page
+  const handleBellClick = () => {
+    navigate(ROUTES.ALERTS);
+  };
+
+  // Get user's first character for fallback
+  const getUserInitial = () => {
+    if (user?.username) {
+      return user.username.charAt(0).toUpperCase();
+    }
+    return 'U';
+  };
+
+  // Get user's display name
+  const getUserDisplayName = () => {
+    if (user?.username) {
+      return user.username;
+    }
+    return 'User';
+  };
+
+  // Get user's role display name
+  const getUserRole = () => {
+    if (user?.role?.name) {
+      return user.role.name;
+    }
+    if (user?.roleType) {
+      return user.roleType.charAt(0).toUpperCase() + user.roleType.slice(1);
+    }
+    return 'Admin';
   };
 
   // Generate page title from route
@@ -95,7 +149,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
               {getPageTitle()}
             </h2>
             <p className="text-md text-slate-500  mt-0.5">
-              Welcome back, Admin
+              Welcome back, {user?.username || 'User'}
             </p>
           </motion.div>
         </div>
@@ -128,16 +182,21 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.3 }}
-            className="relative p-2.5 rounded-xl glass hover:bg-white/50 transition-all group"
+            onClick={handleBellClick}
+            className="relative p-2.5 rounded-xl glass hover:bg-white/50 transition-all group cursor-pointer"
             aria-label="Notifications"
           >
             <BellIcon className="w-6 h-6 text-slate-600 group-hover:text-brand-600 transition-colors" />
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-gradient-to-r from-red-500 to-pink-500 rounded-full shadow-lg"
-            />
-            <span className="absolute top-1 right-1 w-3 h-3 bg-red-500 rounded-full animate-ping opacity-75" />
+            {unresolvedAlertsCount > 0 && (
+              <>
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-gradient-to-r from-red-500 to-pink-500 rounded-full shadow-lg z-10"
+                />
+                <span className="absolute top-1 right-1 w-3 h-3 bg-red-500 rounded-full animate-ping opacity-75" />
+              </>
+            )}
           </motion.button>
 
           {/* Profile */}
@@ -149,12 +208,31 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
             className="flex items-center gap-3  rounded-xl glass hover:bg-white/50 transition-all cursor-pointer group"
             style={{ padding: "0px 10px" }}
           >
-            <div className="w-9 h-9  rounded-full bg-blue-500 flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
-              <span className="text-white font-semibold text-sm">AD</span>
-            </div>
+            {user?.profilePhoto ? (
+              <img
+                src={`${API_BASE_URL.replace('/api', '')}${user.profilePhoto}`}
+                alt={getUserDisplayName()}
+                className="w-9 h-9 rounded-full object-cover shadow-md group-hover:shadow-lg transition-shadow"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent) {
+                    const fallback = document.createElement('div');
+                    fallback.className = 'w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow';
+                    fallback.innerHTML = `<span class="text-white font-semibold text-sm">${getUserInitial()}</span>`;
+                    parent.insertBefore(fallback, target);
+                  }
+                }}
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
+                <span className="text-white font-semibold text-sm">{getUserInitial()}</span>
+              </div>
+            )}
             <div className="block">
-              <p className="text-sm font-semibold text-slate-900">Qureshi</p>
-              <p className="text-xs text-slate-500"> Admin</p>
+              <p className="text-sm font-semibold text-slate-900">{getUserDisplayName()}</p>
+              <p className="text-xs text-slate-500">{getUserRole()}</p>
             </div>
           </motion.div>
 

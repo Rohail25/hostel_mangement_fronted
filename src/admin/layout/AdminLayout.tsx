@@ -10,6 +10,7 @@ import Sidebar from './Sidebar';
 import SecondSidebar from './SecondSidebar';
 import { Topbar } from './Topbar';
 import ROUTES from '../routes/routePaths';
+import { CurrencyProvider } from '../context/CurrencyContext';
 
 /**
  * Modern glassy admin layout component
@@ -20,14 +21,17 @@ export const AdminLayout: React.FC = () => {
   const [isManuallyCollapsed, setIsManuallyCollapsed] = useState(false);
   
   // Check if People, Vendor, Accounts, Communication, FP&A, or Alerts section is active by examining the current route
-  const isPeopleActive = location.pathname.startsWith(ROUTES.PEOPLE);
+  // Support both /admin/* and /owner/* routes
+  const isPeopleActive = location.pathname.startsWith(ROUTES.PEOPLE) || location.pathname.startsWith('/owner/people') || location.pathname.startsWith('/admin/people');
   // Vendor Management (main sidebar) should show second sidebar like Accounts
-  const isVendorManagementActive = location.pathname.startsWith(ROUTES.VENDOR_MANAGEMENT);
-  const isVendorActive = location.pathname.startsWith(ROUTES.VENDOR);
-  const isAccountsActive = location.pathname.startsWith(ROUTES.ACCOUNTS);
-  const isCommunicationActive = location.pathname.startsWith(ROUTES.COMM);
-  const isFPAActive = location.pathname.startsWith(ROUTES.FPA);
-  const isAlertsActive = location.pathname.startsWith(ROUTES.ALERTS);
+  const isVendorManagementActive = location.pathname.startsWith(ROUTES.VENDOR_MANAGEMENT) || location.pathname.startsWith('/owner/vendor/management') || location.pathname.startsWith('/admin/vendor/management');
+  const isVendorActive = location.pathname.startsWith(ROUTES.VENDOR) || location.pathname.startsWith('/owner/vendor') || location.pathname.startsWith('/admin/vendor');
+  const isAccountsActive = location.pathname.startsWith(ROUTES.ACCOUNTS) || location.pathname.startsWith('/owner/accounts') || location.pathname.startsWith('/admin/accounts');
+  const isCommunicationActive = location.pathname.startsWith(ROUTES.COMM) || location.pathname.startsWith('/owner/communication') || location.pathname.startsWith('/admin/communication');
+  const isFPAActive = location.pathname.startsWith(ROUTES.FPA) || location.pathname.startsWith('/owner/fpa') || location.pathname.startsWith('/admin/fpa');
+  const isAlertsActive = location.pathname.startsWith(ROUTES.ALERTS) || location.pathname.startsWith('/owner/alerts') || location.pathname.startsWith('/admin/alerts');
+  // Settings does NOT show second sidebar - it shows cards directly
+  // const isSettingsActive = location.pathname.startsWith(ROUTES.SETTINGS) || location.pathname.startsWith('/owner/settings') || location.pathname.startsWith('/admin/settings');
   const isSecondSidebarActive = isPeopleActive || isVendorActive || isAccountsActive || isCommunicationActive || isFPAActive || isAlertsActive;
   
   /**
@@ -64,6 +68,7 @@ export const AdminLayout: React.FC = () => {
   const isSidebarCollapsed = isSecondSidebarActive || isManuallyCollapsed;
 
   return (
+    <CurrencyProvider>
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 overflow-hidden">
       {/* Animated background elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -126,5 +131,6 @@ export const AdminLayout: React.FC = () => {
         </main>
       </div>
     </div>
+    </CurrencyProvider>
   );
 };

@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { ProtectedRoute } from '../../components/ProtectedRoute';
 import { AdminLayout } from '../layout/AdminLayout';
 
 // Lazy load pages for better performance
@@ -28,17 +29,18 @@ const SettingsForm = React.lazy(() => import('../pages/Settings/SettingsForm'));
  */
 export const AdminRoutes: React.FC = () => {
   return (
-    <React.Suspense
-      fallback={
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mx-auto" />
-            <p className="mt-4 text-slate-600">Loading...</p>
+    <ProtectedRoute allowedRoles={['admin', 'owner']}>
+      <React.Suspense
+        fallback={
+          <div className="flex items-center justify-center h-screen">
+            <div className="text-center">
+              <div className="w-16 h-16 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mx-auto" />
+              <p className="mt-4 text-slate-600">Loading...</p>
+            </div>
           </div>
-        </div>
-      }
-    >
-      <Routes>
+        }
+      >
+        <Routes>
         <Route element={<AdminLayout />}>
           {/* Redirect /admin to /admin/overview */}
           <Route index element={<Navigate to="/admin/overview" replace />} />
@@ -112,8 +114,9 @@ export const AdminRoutes: React.FC = () => {
             }
           />
         </Route>
-      </Routes>
-    </React.Suspense>
+        </Routes>
+      </React.Suspense>
+    </ProtectedRoute>
   );
 };
 

@@ -44,6 +44,9 @@ import {
   ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
 import jsPDF from 'jspdf';
+import { addPDFBranding, addPDFHeader } from '../../utils/pdfExport';
+import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 
 type MainTab = 'Payable' | 'Receivable' | 'All';
 type PayableSubTab = 'All' | 'Bills' | 'Vendor' | 'Laundry';
@@ -56,6 +59,7 @@ type ReceivableCategory = 'Rent' | 'Deposit';
 const AccountsList: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { currencySymbol } = useCurrency();
   
   // Determine active sections from route
   const getActiveMainTab = (): MainTab => {
@@ -415,7 +419,7 @@ const AccountsList: React.FC = () => {
           }
         >
           {activeMainTab === 'Payable' || row.type === 'Expense' ? '-' : '+'}
-          {formatCurrency(row.amount)}
+          {formatCurrency(row.amount, currencySymbol)}
         </span>
       ),
     },
@@ -871,7 +875,12 @@ const AccountsList: React.FC = () => {
   const handleExportPDF = () => {
     try {
       const doc = new jsPDF();
-      let yPos = 20;
+      
+      // Add branding (watermark, logo, center text, user name)
+      const userName = user?.username || 'User';
+      addPDFBranding(doc, userName);
+      
+      let yPos = 35; // Start after header
       
       doc.setFontSize(18);
       doc.text(`${activeMainTab} Accounts Report`, 105, yPos, { align: 'center' });
@@ -894,7 +903,7 @@ const AccountsList: React.FC = () => {
             doc.addPage();
             yPos = 20;
           }
-          doc.text(`${index + 1}. ${transaction.description || 'N/A'} - ${formatCurrency(transaction.amount)} - ${transaction.status}`, 20, yPos);
+          doc.text(`${index + 1}. ${transaction.description || 'N/A'} - ${formatCurrency(transaction.amount, currencySymbol)} - ${transaction.status}`, 20, yPos);
           yPos += 6;
         });
         
@@ -902,13 +911,22 @@ const AccountsList: React.FC = () => {
         doc.setFontSize(12);
         doc.setFont(undefined, 'bold');
         if (activeMainTab === 'Payable') {
-          doc.text(`Total Payable: ${formatCurrency(payableTotal)}`, 20, yPos);
+          doc.text(`Total Payable: ${formatCurrency(payableTotal, currencySymbol)}`, 20, yPos);
         } else if (activeMainTab === 'Receivable') {
-          doc.text(`Total Receivable: ${formatCurrency(receivableTotal)}`, 20, yPos);
+          doc.text(`Total Receivable: ${formatCurrency(receivableTotal, currencySymbol)}`, 20, yPos);
         }
       } else {
         doc.setFontSize(12);
         doc.text('No transactions available', 20, yPos);
+      }
+      
+      // Add header to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        if (i > 1) {
+          addPDFHeader(doc, userName);
+        }
       }
       
       doc.save(`accounts-${activeMainTab.toLowerCase()}-report-${new Date().toISOString().split('T')[0]}.pdf`);
@@ -1079,7 +1097,7 @@ const AccountsList: React.FC = () => {
             <ArrowTrendingUpIcon className="w-5 h-5 text-green-600" />
           </div>
           <p className="text-sm font-medium text-gray-600 mb-1">Total Income</p>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.income)}</p>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.income, currencySymbol)}</p>
         </motion.div>
 
         {/* Expense Card */}
@@ -1096,7 +1114,7 @@ const AccountsList: React.FC = () => {
             <ArrowTrendingDownIcon className="w-5 h-5 text-red-600" />
           </div>
           <p className="text-sm font-medium text-gray-600 mb-1">Total Expenses</p>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.expenses)}</p>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.expenses, currencySymbol)}</p>
         </motion.div>
 
         {/* Profit Card */}
@@ -1126,7 +1144,7 @@ const AccountsList: React.FC = () => {
           </div>
           <p className="text-sm font-medium text-gray-600 mb-1">Profit / Loss</p>
           <p className={`text-2xl font-bold ${summary.isProfit ? 'text-green-900' : 'text-red-900'}`}>
-            {summary.isProfit ? '+' : ''}{formatCurrency(summary.profit)}
+            {summary.isProfit ? '+' : ''}{formatCurrency(summary.profit, currencySymbol)}
           </p>
         </motion.div>
 
@@ -1144,7 +1162,7 @@ const AccountsList: React.FC = () => {
             <span className="text-sm font-semibold text-orange-600">Loss</span>
           </div>
           <p className="text-sm font-medium text-gray-600 mb-1">Capital Invested</p>
-          <p className="text-2xl font-bold text-orange-900">{formatCurrency(summary.badDebt)}</p>
+          <p className="text-2xl font-bold text-orange-900">{formatCurrency(summary.badDebt, currencySymbol)}</p>
         </motion.div>
       </div>
 
@@ -1382,8 +1400,8 @@ const AccountsList: React.FC = () => {
                 </p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">
                   {activeMainTab === 'All'
-                    ? formatCurrency(payableTotal + receivableTotal)
-                    : formatCurrency(activeMainTab === 'Payable' ? payableTotal : receivableTotal)}
+                    ? formatCurrency(payableTotal + receivableTotal, currencySymbol)
+                    : formatCurrency(activeMainTab === 'Payable' ? payableTotal : receivableTotal, currencySymbol)}
                 </p>
               </div>
               <div className="flex items-center gap-4">
@@ -1717,7 +1735,7 @@ const AccountsList: React.FC = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Amount:</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(editingTransaction.amount)}</span>
+                    <span className="font-medium text-gray-900">{formatCurrency(editingTransaction.amount, currencySymbol)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Current Status:</span>

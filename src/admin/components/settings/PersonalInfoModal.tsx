@@ -97,19 +97,7 @@ export const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, on
       errors.push('Phone is required');
     }
     
-    // Address validation
-    if (!formData.street1.trim()) {
-      errors.push('Street 1 is required');
-    }
-    if (!formData.city.trim()) {
-      errors.push('City is required');
-    }
-    if (!formData.country.trim()) {
-      errors.push('Country is required');
-    }
-    if (!formData.zipCode.trim()) {
-      errors.push('Zip code is required');
-    }
+    // Address fields are optional (nullable) - no validation needed
     
     if (errors.length > 0) {
       setError('Please fill in all required fields:\n' + errors.join('\n'));
@@ -122,18 +110,25 @@ export const PersonalInfoModal: React.FC<PersonalInfoModalProps> = ({ isOpen, on
     
     try {
       // Prepare data for API call
+      // Helper function to safely trim and return undefined if empty
+      const safeTrim = (value: string | undefined | null): string | undefined => {
+        if (!value) return undefined;
+        const trimmed = value.trim();
+        return trimmed ? trimmed : undefined;
+      };
+      
       const updateData = {
         username: formData.username,
         email: formData.email,
         phone: formData.phone,
         profilePhoto: formData.profilePhotoFile || formData.profilePicture || undefined,
         address: {
-          street1: formData.street1,
-          street2: formData.street2 || undefined,
-          city: formData.city,
-          state: formData.state || undefined,
-          zipCode: formData.zipCode,
-          country: formData.country,
+          street1: safeTrim(formData.street1),
+          street2: safeTrim(formData.street2),
+          city: safeTrim(formData.city),
+          state: safeTrim(formData.state),
+          zipCode: safeTrim(formData.zipCode),
+          country: safeTrim(formData.country),
         },
       };
       

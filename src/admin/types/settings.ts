@@ -149,6 +149,15 @@ export interface UserRoleFormData {
         delete: boolean;
       };
     };
+    sidebarTabs: {
+      [key: string]: {
+        viewList: boolean;
+        viewOne: boolean;
+        create: boolean;
+        edit: boolean;
+        delete: boolean;
+      };
+    };
   };
 }
 
