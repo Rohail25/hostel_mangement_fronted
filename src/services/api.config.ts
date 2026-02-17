@@ -4,8 +4,8 @@
  */
 
 // Base API URL - Change this to your backend URL
-// export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://hostel-mgt-backend.hmstech.org/api';
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://hostel-mgt-backend.hmstech.org/api';
+// export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
 // Log the API base URL on module load for debugging
 console.log('🌐 API Base URL:', API_BASE_URL);
