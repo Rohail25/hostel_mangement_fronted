@@ -102,17 +102,22 @@ const createApiClient = (): AxiosInstance => {
       return response;
     },
     (error: AxiosError) => {
-      // Log error for debugging
-      console.error('❌ API Error:', {
-        status: error.response?.status,
-        url: error.config?.url,
-        message: error.message,
-        data: error.response?.data,
-      });
+      const requestUrl = error.config?.url || '';
+      const isExpectedCurrencyMissing =
+        error.response?.status === 404 && requestUrl.includes('/admin/currency');
+
+      // Log unexpected errors for debugging
+      if (!isExpectedCurrencyMissing) {
+        console.error('❌ API Error:', {
+          status: error.response?.status,
+          url: error.config?.url,
+          message: error.message,
+          data: error.response?.data,
+        });
+      }
       // Handle 401 Unauthorized - Clear auth and redirect to login
       // But exclude login/register endpoints (they may return 401 for invalid credentials)
       if (error.response?.status === 401) {
-        const requestUrl = error.config?.url || '';
         const isAuthEndpoint = requestUrl.includes('/login') || 
                               requestUrl.includes('/register') || 
                               requestUrl.includes('/owner/register') ||

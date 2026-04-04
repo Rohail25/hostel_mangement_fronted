@@ -31,6 +31,12 @@ export async function getUserCurrencyAPI(): Promise<Currency | null> {
     }
     return null;
   } catch (error: any) {
+    const status = error?.response?.status;
+
+    if (status === 404) {
+      return null;
+    }
+
     console.error('Error fetching currency:', error);
     throw error;
   }
