@@ -40,7 +40,6 @@ export const UserDashboard = () => {
       >
         <div>
           <h1 className="text-4xl font-bold text-gray-900">My Dashboard</h1>
-          <p className="text-gray-600 mt-2">Welcome, {user?.username}</p>
         </div>
       </motion.div>
 

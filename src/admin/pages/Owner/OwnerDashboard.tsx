@@ -48,7 +48,6 @@ export const OwnerDashboard = () => {
       >
         <div>
           <h1 className="text-4xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-2">Welcome back, {user?.username}</p>
         </div>
       </motion.div>
 

@@ -148,9 +148,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar }) => {
             <h2 className="text-2xl font-bold  bg-clip-text text-blue-500">
               {getPageTitle()}
             </h2>
-            <p className="text-md text-slate-500  mt-0.5">
-              Welcome back, {user?.username || 'User'}
-            </p>
           </motion.div>
         </div>
 
