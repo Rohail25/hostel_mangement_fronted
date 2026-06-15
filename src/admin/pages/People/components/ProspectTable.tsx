@@ -12,7 +12,8 @@ import {
   PhoneIcon,
   EyeIcon,
   PencilIcon,
-  TrashIcon
+  TrashIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
 interface ProspectTableProps {
@@ -20,6 +21,7 @@ interface ProspectTableProps {
   onView: (id: number) => void;
   onEdit: (id: number) => void;
   onDelete: (id: number, name: string) => void;
+  onTransfer: (id: number, currentStatus: string) => void;
 }
 
 const ProspectTable: React.FC<ProspectTableProps> = ({
@@ -27,6 +29,7 @@ const ProspectTable: React.FC<ProspectTableProps> = ({
   onView,
   onEdit,
   onDelete,
+  onTransfer,
 }) => {
   const columns = [
     {
@@ -53,12 +56,18 @@ const ProspectTable: React.FC<ProspectTableProps> = ({
                   variant={
                     row.status === 'active' || row.status === 'Active'
                       ? 'success'
+                      : row.status === 'inactive' || row.status === 'Inactive'
+                      ? 'danger'
                       : row.status === 'pending' || row.status === 'Pending'
                       ? 'warning'
                       : 'default'
                   }
                 >
-                  {row.status === 'active' || row.status === 'Active' ? 'Active' : row.status || 'Pending'}
+                  {row.status === 'active' || row.status === 'Active'
+                    ? 'Active'
+                    : row.status === 'inactive' || row.status === 'Inactive'
+                    ? 'Inactive'
+                    : row.status || 'Pending'}
                 </Badge>
               </div>
               <p className="text-sm text-gray-600 truncate">{profession}</p>
@@ -107,6 +116,13 @@ const ProspectTable: React.FC<ProspectTableProps> = ({
             <PencilIcon className="w-5 h-5" />
           </button>
           <button
+            onClick={() => onTransfer(row.id, row.status || '')}
+            className="p-2 text-gray-600 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
+            title={String(row.status || '').toLowerCase() === 'active' ? 'Mark Inactive' : 'Restore Active'}
+          >
+            <ArrowPathIcon className="w-5 h-5" />
+          </button>
+          <button
             onClick={() => onDelete(row.id, row.name || `${row.firstName} ${row.lastName}`)}
             className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             title="Delete"
@@ -118,12 +134,38 @@ const ProspectTable: React.FC<ProspectTableProps> = ({
     },
   ];
 
+  const activeProspects = prospects
+    .filter((prospect) => String(prospect.status || '').toLowerCase() === 'active')
+    .map((prospect, index) => ({ ...prospect, rowNumber: index + 1 }));
+
+  const inactiveProspects = prospects
+    .filter((prospect) => String(prospect.status || '').toLowerCase() === 'inactive')
+    .map((prospect, index) => ({ ...prospect, rowNumber: activeProspects.length + index + 1 }));
+
+  const renderSection = (title: string, description: string, sectionData: any[]) => (
+    <div>
+      <div className="mb-4 rounded-2xl border-l-4 border-blue-500 bg-blue-50/70 p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-sm uppercase tracking-wide text-blue-700 font-semibold">{title}</div>
+            <div className="text-sm text-blue-600">{description}</div>
+          </div>
+          <div className="text-sm font-semibold text-slate-700">Total prospects: {sectionData.length}</div>
+        </div>
+      </div>
+      <DataTable
+        columns={columns}
+        data={sectionData}
+        emptyMessage={`No ${title.toLowerCase()} prospects found.`}
+      />
+    </div>
+  );
+
   return (
-    <DataTable
-      columns={columns}
-      data={prospects}
-      emptyMessage="No prospects found. Try adjusting your search or filters."
-    />
+    <div className="space-y-6">
+      {renderSection('Active', 'Currently active prospects', activeProspects)}
+      {inactiveProspects.length > 0 && renderSection('Inactive', 'Prospects marked inactive', inactiveProspects)}
+    </div>
   );
 };
 

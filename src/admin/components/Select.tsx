@@ -25,6 +25,8 @@ interface SelectProps {
   label?: string;
   /** Disabled state */
   disabled?: boolean;
+  /** Optional validation error message */
+  error?: string;
 }
 
 /**
@@ -37,6 +39,7 @@ export const Select: React.FC<SelectProps> = ({
   placeholder = 'Select...',
   label,
   disabled = false,
+  error,
 }) => {
   return (
     <motion.div
@@ -54,7 +57,7 @@ export const Select: React.FC<SelectProps> = ({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className="block w-full px-4 py-3 glass border border-white/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent bg-white/50 appearance-none cursor-pointer text-sm font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`block w-full px-4 py-3 glass rounded-xl focus:outline-none focus:ring-2 ${error ? 'border-red-500 focus:ring-red-400' : 'border border-white/30 focus:ring-brand-400'} focus:border-transparent bg-white/50 appearance-none cursor-pointer text-sm font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {placeholder && <option value="">{placeholder}</option>}
           {options.map((option) => (
@@ -67,6 +70,7 @@ export const Select: React.FC<SelectProps> = ({
           <ChevronDownIcon className="h-5 w-5 text-slate-400" />
         </div>
       </div>
+      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
     </motion.div>
   );
 };

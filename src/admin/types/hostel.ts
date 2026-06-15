@@ -17,6 +17,8 @@ export interface Hostel {
   managerName: string;
   managerPhone: string;
   notes?: string;
+  amenities?: string[];
+  mapLink?: string;
   category?: string;
   type?: string;
 }
@@ -32,6 +34,8 @@ export interface HostelFormData {
   managerName: string;
   managerPhone: string;
   notes?: string;
+  amenities?: string[];
+  mapLink?: string;
 }
 
 /**
@@ -110,10 +114,11 @@ export type MealType = 'breakfast' | 'lunch' | 'dinner';
 export interface MessItem {
   id: string;
   name: string;
-  quantity: string; // e.g., "2 kg", "5 pieces", "1 liter"
+  quantity: string; // e.g., "2 kg", "5 pieces", "1 liter" or numeric "5"
   unit?: string; // kg, pieces, liter, etc.
   cost?: number; // Cost of this item
-  ingredients?: string[]; // Ingredients needed for this item
+  total?: number; // Total cost (quantity * cost)
+  ingredients?: string | string[]; // Ingredients needed for this item
 }
 
 /**
@@ -132,6 +137,7 @@ export interface MessEntry {
   id: Id;
   hostelId: Id;
   day: string; // Day of week (Monday, Tuesday, etc.)
+  date: string; // ISO date string for the specific day
   breakfast: Meal;
   lunch: Meal;
   dinner: Meal;
@@ -151,7 +157,8 @@ export interface MessFormData {
       name: string; 
       quantity: string; 
       unit?: string;
-      cost?: string; // Cost of this item
+      cost?: string; // Cost of this item (as string in form, converted to number on submit)
+      total?: string; // Total cost (quantity * cost) - stored as string in form
       ingredients?: string; // Comma-separated ingredients
     }>;
     notes?: string;
@@ -162,7 +169,8 @@ export interface MessFormData {
       name: string; 
       quantity: string; 
       unit?: string;
-      cost?: string; // Cost of this item
+      cost?: string; // Cost of this item (as string in form, converted to number on submit)
+      total?: string; // Total cost (quantity * cost) - stored as string in form
       ingredients?: string; // Comma-separated ingredients
     }>;
     notes?: string;
@@ -173,7 +181,8 @@ export interface MessFormData {
       name: string; 
       quantity: string; 
       unit?: string;
-      cost?: string; // Cost of this item
+      cost?: string; // Cost of this item (as string in form, converted to number on submit)
+      total?: string; // Total cost (quantity * cost) - stored as string in form
       ingredients?: string; // Comma-separated ingredients
     }>;
     notes?: string;

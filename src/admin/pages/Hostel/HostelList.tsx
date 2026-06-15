@@ -118,8 +118,14 @@ const HostelList: React.FC = () => {
           street: data.address?.street?.trim() ?? data.street?.trim(),
         },
         description: data.description?.trim() || undefined,
+        amenities: Array.isArray(data.amenities) ? data.amenities : [],
+        mapLink: data.mapLink?.trim() || undefined,
         category: data.category,
         type: data.type,
+        totalFloors: data.totalFloors,
+        totalRooms: data.totalRooms,
+        totalBeds: data.totalBeds,
+        arrangements: Array.isArray(data.arrangements) ? data.arrangements : [],
         operatingHours: {
           checkIn: data.operatingHours?.checkIn || data.checkInTime,
           checkOut: data.operatingHours?.checkOut || data.checkOutTime,
@@ -285,7 +291,7 @@ const HostelList: React.FC = () => {
         onClick={() => navigate(`${rolePrefix}/hostel/${hostel.id}`)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-sm hover:shadow-md hover:from-blue-600 hover:to-blue-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-linear-to-r from-blue-500 to-blue-600 rounded-lg shadow-sm hover:shadow-md hover:from-blue-600 hover:to-blue-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
         title="View Hostel Details"
       >
         <EyeIcon className="w-4 h-4" />
@@ -297,7 +303,7 @@ const HostelList: React.FC = () => {
         onClick={() => navigate(`${rolePrefix}/hostel/${hostel.id}/edit`)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-[#2176FF] to-[#1966E6] rounded-lg shadow-sm hover:shadow-md hover:from-[#1966E6] hover:to-[#1555CC] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#2176FF] focus:ring-offset-1"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-linear-to-r from-[#2176FF] to-[#1966E6] rounded-lg shadow-sm hover:shadow-md hover:from-[#1966E6] hover:to-[#1555CC] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#2176FF] focus:ring-offset-1"
         title="Edit Hostel"
       >
         <PencilIcon className="w-4 h-4" />
@@ -309,7 +315,7 @@ const HostelList: React.FC = () => {
         onClick={() => setDeleteConfirm({ open: true, hostel })}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-red-500 to-red-600 rounded-lg shadow-sm hover:shadow-md hover:from-red-600 hover:to-red-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-linear-to-r from-red-500 to-red-600 rounded-lg shadow-sm hover:shadow-md hover:from-red-600 hover:to-red-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
         title="Delete Hostel"
       >
         <TrashIcon className="w-4 h-4" />

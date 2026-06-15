@@ -25,6 +25,7 @@ import Jobs from './pages/Jobs'
 import Blogs from './pages/Blogs'
 import About from './pages/About'
 import Onboarding from './pages/Onboarding'
+import OnboardingStart from './pages/OnboardingStart'
 import CustomerService from './pages/CustomerService'
 import OwnerHotel from './pages/OwnerHotel'
 
@@ -36,6 +37,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/onboarding/start" element={<OnboardingStart />} />
           <Route path="/customer-service" element={<CustomerService />} />
           <Route path="/owner-hotel" element={<OwnerHotel />} />
           <Route path="/hostels" element={<Hostels />} />

@@ -27,6 +27,7 @@ interface PeopleContentProps {
   onView: (id: number, type: 'Tenant' | 'Employee' | 'Prospect') => void;
   onEdit: (id: number, type: 'Tenant' | 'Employee' | 'Prospect') => void;
   onDelete: (id: number, type: 'Tenant' | 'Employee' | 'Prospect', name: string) => void;
+  onTransfer: (id: number, type: 'Tenant' | 'Employee' | 'Prospect', currentStatus: string) => void;
   onAddClick: () => void;
   // Vendor wrapper
   vendorListWrapper?: React.ReactNode;
@@ -44,6 +45,7 @@ export const PeopleContent: React.FC<PeopleContentProps> = React.memo(({
   onView,
   onEdit,
   onDelete,
+  onTransfer,
   onAddClick,
   vendorListWrapper,
 }) => {
@@ -84,6 +86,7 @@ export const PeopleContent: React.FC<PeopleContentProps> = React.memo(({
               onView={(id) => onView(id, 'Prospect')}
               onEdit={(id) => onEdit(id, 'Prospect')}
               onDelete={(id, name) => onDelete(id, 'Prospect', name)}
+              onTransfer={(id, status) => onTransfer(id, 'Prospect', status)}
             />
           )}
         </div>
@@ -116,6 +119,7 @@ export const PeopleContent: React.FC<PeopleContentProps> = React.memo(({
               onView={(id) => onView(id, 'Tenant')}
               onEdit={(id) => onEdit(id, 'Tenant')}
               onDelete={(id, name) => onDelete(id, 'Tenant', name)}
+              onTransfer={(id, status) => onTransfer(id, 'Tenant', status)}
             />
           )}
         </div>
@@ -137,6 +141,7 @@ export const PeopleContent: React.FC<PeopleContentProps> = React.memo(({
               onView={(id) => onView(id, 'Employee')}
               onEdit={(id) => onEdit(id, 'Employee')}
               onDelete={(id, name) => onDelete(id, 'Employee', name)}
+              onTransfer={(id, status) => onTransfer(id, 'Employee', status)}
             />
           )}
         </div>

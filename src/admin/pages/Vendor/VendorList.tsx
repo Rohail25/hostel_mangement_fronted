@@ -17,6 +17,7 @@ import {
   XMarkIcon,
   EyeIcon,
   PencilIcon,
+  ArrowPathIcon,
   TrashIcon,
   ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
@@ -37,6 +38,19 @@ import vendorServicesData from '../../mock/vendor-services.json';
 import * as hostelService from '../../services/hostel.service';
 import { api } from '../../../services/apiClient';
 import { API_ROUTES } from '../../../services/api.config';
+
+const countryCityMap: Record<string, string[]> = {
+  'United States': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Miami'],
+  Canada: ['Toronto', 'Vancouver', 'Montreal', 'Calgary', 'Ottawa'],
+  'United Kingdom': ['London', 'Manchester', 'Birmingham', 'Leeds', 'Glasgow'],
+  Australia: ['Sydney', 'Melbourne', 'Brisbane', 'Perth', 'Adelaide'],
+  India: ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Hyderabad'],
+  Germany: ['Berlin', 'Munich', 'Frankfurt', 'Hamburg', 'Cologne'],
+  France: ['Paris', 'Lyon', 'Marseille', 'Nice', 'Toulouse'],
+  'United Arab Emirates': ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Ras Al Khaimah'],
+  'South Africa': ['Johannesburg', 'Cape Town', 'Durban', 'Pretoria', 'Port Elizabeth'],
+  Kenya: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret'],
+};
 
 interface Vendor {
   id: number;
@@ -74,6 +88,17 @@ interface Vendor {
     tags: string[] | null;
   }>;
   serviceTags?: string[];
+  attachments?: VendorAttachment[];
+}
+
+interface VendorAttachment {
+  title?: string;
+  type?: string;
+  name?: string;
+  uploadedAt?: string;
+  url?: string;
+  filename?: string;
+  originalName?: string;
 }
 
 interface Service {
@@ -171,17 +196,30 @@ const VendorList: React.FC<VendorListProps> = ({
     name: '',
     email: '',
     phone: '',
+    alternatePhone: '',
+    whatsapp: '',
+    reference: '',
     companyName: '',
     address: '',
+    country: '',
+    city: '',
     location: '',
-    attachments: [] as any[],
+    businessDescription: '',
+    profilePhoto: null as File | null,
+    previousProfilePhoto: '',
+    cnicFront: null as File | null,
+    cnicBack: null as File | null,
+    businessCard: null as File | null,
+    additionalAttachments: [{ id: '1', title: '', file: null }] as Array<{ id: string; title: string; file: File | null }>,
+    attachments: [] as VendorAttachment[],
     category: '',
     specialties: [{ id: '1', name: '', description: '' }],
-    rating: '4.5',
     hostelId: '',
     paymentTerms: 'prepaid',
     status: 'active',
   });
+  const [vendorFormErrors, setVendorFormErrors] = useState<Record<string, string>>({});
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [toast, setToast] = useState<{ open: boolean; type: 'success' | 'error' | 'warning' | 'info'; message: string }>({
@@ -189,6 +227,20 @@ const VendorList: React.FC<VendorListProps> = ({
     type: 'success',
     message: '',
   });
+
+  useEffect(() => {
+    if (vendorForm.profilePhoto) {
+      const previewUrl = URL.createObjectURL(vendorForm.profilePhoto);
+      setProfilePhotoPreview(previewUrl);
+      return () => URL.revokeObjectURL(previewUrl);
+    }
+
+    setProfilePhotoPreview(null);
+    return undefined;
+  }, [vendorForm.profilePhoto]);
+
+  const getVendorFieldClass = (field: string, baseClass = 'w-full px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent') =>
+    `${baseClass} ${vendorFormErrors[field] ? 'border-red-500 ring-2 ring-red-100 focus:ring-red-500' : 'border border-slate-300 focus:ring-blue-500'}`;
 
   // Fetch hostels from API on component mount
   useEffect(() => {
@@ -273,6 +325,28 @@ const VendorList: React.FC<VendorListProps> = ({
     }
   }, []);
 
+  const loadAllVendors = useCallback(async () => {
+    try {
+      setVendorsLoading(true);
+      setVendorsError(null);
+      const response = await api.get(API_ROUTES.VENDOR.LIST);
+      if (response.success && response.data) {
+        const vendorsData = Array.isArray(response.data)
+          ? response.data
+          : (response.data.items || []);
+        setVendors(vendorsData);
+      } else {
+        throw new Error(response.message || 'Failed to fetch vendors');
+      }
+    } catch (error: any) {
+      console.error('Error loading all vendors:', error);
+      setVendorsError(error.message || 'Failed to load vendors');
+      setVendors([]);
+    } finally {
+      setVendorsLoading(false);
+    }
+  }, []);
+
   // Fetch vendors by hostelId when hostel is selected (for list section)
   useEffect(() => {
     if (effectiveHostelId && activeSection === 'list') {
@@ -313,35 +387,22 @@ const VendorList: React.FC<VendorListProps> = ({
   // Load all vendors when needed
   useEffect(() => {
     if (activeSection === 'list') {
-      const loadAllVendors = async () => {
-        try {
-          setVendorsLoading(true);
-          setVendorsError(null);
-          const response = await api.get(API_ROUTES.VENDOR.LIST);
-          if (response.success && response.data) {
-            const vendorsData = Array.isArray(response.data) 
-              ? response.data 
-              : (response.data.items || []);
-            setVendors(vendorsData);
-          } else {
-            throw new Error(response.message || 'Failed to fetch vendors');
-          }
-        } catch (error: any) {
-          console.error('Error loading all vendors:', error);
-          setVendorsError(error.message || 'Failed to load vendors');
-          setVendors([]);
-        } finally {
-          setVendorsLoading(false);
-        }
-      };
       loadAllVendors();
     }
-  }, [activeSection]);
+  }, [activeSection, loadAllVendors]);
 
-  // Filter vendors by selected hostel (for Vendor List tab) - Now using API data
+  const getVendorStatus = (vendor: any) =>
+    String(vendor.status || vendor.statusLabel || '').toLowerCase();
+
   const filteredVendors = useMemo(() => {
-    return vendors;
-  }, [vendors]);
+    let list = vendors;
+    if (effectiveHostelId) {
+      list = list.filter((vendor: any) =>
+        String(vendor.hostelId || vendor.hostel?.id || '').trim() === String(effectiveHostelId).trim()
+      );
+    }
+    return list;
+  }, [vendors, effectiveHostelId]);
 
   // Get all services with their assigned vendors (for Vendor Management tab)
   const servicesWithVendors = useMemo(() => {
@@ -426,25 +487,48 @@ const VendorList: React.FC<VendorListProps> = ({
       if (response.success && response.data) {
         const vendorData = response.data;
         setSelectedVendor(vendorData);
+        const vendorAttachments = Array.isArray(vendorData.attachments)
+          ? (vendorData.attachments as VendorAttachment[])
+          : [];
+        const vendorServices = Array.isArray(vendorData.services)
+          ? (vendorData.services as Array<{ name?: string; specialty?: string; description?: string }>)
+          : [];
         
         // Populate form with vendor data
         setVendorForm({
           name: vendorData.name || '',
           email: vendorData.contact?.email || vendorData.email || '',
           phone: vendorData.contact?.phone || vendorData.phone || '',
+          alternatePhone: vendorData.contact?.alternatePhone || vendorData.alternatePhone || '',
+          whatsapp: vendorData.whatsapp || '',
+          reference: vendorData.reference || '',
           companyName: vendorData.companyName || '',
           address: vendorData.address || '',
+          country: vendorData.country || '',
+          city: vendorData.city || '',
           location: vendorData.location || '',
-          attachments: vendorData.attachments || [],
+          businessDescription: vendorData.businessDescription || '',
+          profilePhoto: null,
+          previousProfilePhoto: vendorData.profilePhoto || '',
+          cnicFront: null,
+          cnicBack: null,
+          businessCard: null,
+          additionalAttachments: vendorAttachments.length > 0
+            ? vendorAttachments.map((att, idx) => ({
+                id: String(idx + 1),
+                title: att.title || att.name || `Attachment ${idx + 1}`,
+                file: null,
+              }))
+            : [{ id: '1', title: '', file: null }],
+          attachments: vendorAttachments,
           category: vendorData.category || '',
-          specialties: vendorData.services && vendorData.services.length > 0
-            ? vendorData.services.map((s: any, idx: number) => ({
+          specialties: vendorServices.length > 0
+            ? vendorServices.map((s, idx) => ({
                 id: String(idx + 1),
                 name: s.name || s.specialty || '',
                 description: s.description || '',
               }))
             : [{ id: '1', name: vendorData.specialty || '', description: '' }],
-          rating: vendorData.rating?.average ? String(vendorData.rating.average) : '4.5',
           hostelId: vendorData.hostelId ? String(vendorData.hostelId) : '',
           paymentTerms: vendorData.paymentTerms || 'prepaid',
           status: vendorData.status || 'active',
@@ -473,6 +557,62 @@ const VendorList: React.FC<VendorListProps> = ({
   const handleDeleteVendor = (vendor: Vendor) => {
     setSelectedVendor(vendor);
     setIsDeleteConfirmOpen(true);
+  };
+
+  const handleToggleVendorStatus = async (vendor: Vendor) => {
+    try {
+      const currentStatus = getVendorStatus(vendor);
+      const nextStatus = currentStatus === 'active' ? 'inactive' : 'active';
+      const response = await api.put(API_ROUTES.VENDOR.UPDATE(vendor.id), { status: nextStatus });
+      if (response.success) {
+        setToast({
+          open: true,
+          type: 'success',
+          message: `Vendor ${vendor.name} has been ${nextStatus === 'active' ? 'restored' : 'marked left'}.`,
+        });
+        if (effectiveHostelId) {
+          await fetchVendorsByHostel(effectiveHostelId);
+        } else {
+          await loadAllVendors();
+        }
+      } else {
+        throw new Error(response.message || 'Failed to update vendor status');
+      }
+    } catch (error: any) {
+      console.error('Error toggling vendor status:', error);
+      setToast({
+        open: true,
+        type: 'error',
+        message: error.message || 'Failed to update vendor status. Please try again.',
+      });
+    }
+  };
+
+  const handleSuspendVendor = async (vendor: Vendor) => {
+    try {
+      const response = await api.put(API_ROUTES.VENDOR.UPDATE(vendor.id), { status: 'suspended' });
+      if (response.success) {
+        setToast({
+          open: true,
+          type: 'success',
+          message: `Vendor ${vendor.name} has been suspended.`,
+        });
+        if (effectiveHostelId) {
+          await fetchVendorsByHostel(effectiveHostelId);
+        } else {
+          await loadAllVendors();
+        }
+      } else {
+        throw new Error(response.message || 'Failed to suspend vendor');
+      }
+    } catch (error: any) {
+      console.error('Error suspending vendor:', error);
+      setToast({
+        open: true,
+        type: 'error',
+        message: error.message || 'Failed to suspend vendor. Please try again.',
+      });
+    }
   };
 
   // Confirm delete vendor or assignment
@@ -528,105 +668,6 @@ const VendorList: React.FC<VendorListProps> = ({
       });
     } finally {
       setIsDeleting(false);
-    }
-  };
-
-  // Handle update vendor
-  const handleUpdateVendor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!selectedVendor) return;
-    
-    // Validation
-    const errors: string[] = [];
-    if (!vendorForm.name.trim()) errors.push('Vendor name is required');
-    if (!vendorForm.email.trim()) errors.push('Email is required');
-    if (!vendorForm.phone.trim()) errors.push('Phone is required');
-    if (!vendorForm.companyName.trim()) errors.push('Company name is required');
-    if (!vendorForm.category.trim()) errors.push('Category is required');
-    if (vendorForm.specialties.length === 0 || vendorForm.specialties.some(s => !s.name.trim())) {
-      errors.push('At least one specialty service name is required');
-    }
-    if (!vendorForm.hostelId) errors.push('Hostel is required');
-    
-    if (errors.length > 0) {
-      setToast({
-        open: true,
-        type: 'warning',
-        message: 'Please fill in all required fields:\n' + errors.join('\n'),
-      });
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
-    try {
-      const requestPayload: any = {
-        name: vendorForm.name.trim(),
-        companyName: vendorForm.companyName.trim(),
-        address: vendorForm.address.trim(),
-        email: vendorForm.email.trim(),
-        phone: vendorForm.phone.trim(),
-        specialty: vendorForm.category.trim(),
-        services: vendorForm.specialties.map(s => ({
-          name: s.name.trim(),
-          description: s.description?.trim() || null,
-        })).filter(s => s.name),
-        location: vendorForm.location.trim() || null,
-        attachments: vendorForm.attachments.length > 0 ? vendorForm.attachments : null,
-        paymentTerms: vendorForm.paymentTerms,
-        hostelId: Number(vendorForm.hostelId),
-        status: vendorForm.status,
-      };
-
-      console.log('📡 Updating vendor:', selectedVendor.id, requestPayload);
-      
-      const response = await api.put(API_ROUTES.VENDOR.UPDATE(selectedVendor.id), requestPayload);
-      
-      console.log('✅ Vendor updated successfully:', response);
-      
-      if (response.success && response.data) {
-        setToast({
-          open: true,
-          type: 'success',
-          message: response.message || `Vendor "${vendorForm.name}" updated successfully!`,
-        });
-        
-        // Reset form
-        setVendorForm({
-          name: '',
-          email: '',
-          phone: '',
-          companyName: '',
-          address: '',
-          location: '',
-          attachments: [],
-          category: '',
-          specialties: [{ id: '1', name: '', description: '' }],
-          rating: '4.5',
-          hostelId: '',
-          paymentTerms: 'prepaid',
-        });
-        setActiveTab('vendorInfo');
-        setSelectedVendor(null);
-        setIsEditVendorModalOpen(false);
-        
-        // Refresh vendor list
-        if (selectedHostelId) {
-          fetchVendorsByHostel(selectedHostelId);
-        }
-      } else {
-        throw new Error(response.message || 'Failed to update vendor');
-      }
-    } catch (error: any) {
-      console.error('❌ Error updating vendor:', error);
-      setToast({
-        open: true,
-        type: 'error',
-        message: error.message || 'Failed to update vendor. Please try again.',
-      });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -937,17 +978,37 @@ const VendorList: React.FC<VendorListProps> = ({
     
     // Validation
     const errors: string[] = [];
-    if (!vendorForm.name.trim()) errors.push('Vendor name is required');
-    if (!vendorForm.email.trim()) errors.push('Email is required');
-    if (!vendorForm.phone.trim()) errors.push('Phone is required');
-    if (!vendorForm.companyName.trim()) errors.push('Company name is required');
-    if (!vendorForm.category.trim()) errors.push('Category is required');
+    const fieldErrors: Record<string, string> = {};
+    if (!vendorForm.name.trim()) {
+      errors.push('Vendor name is required');
+      fieldErrors.name = 'Vendor name is required';
+    }
+    if (!vendorForm.email.trim()) {
+      errors.push('Email is required');
+      fieldErrors.email = 'Email is required';
+    }
+    if (!vendorForm.phone.trim()) {
+      errors.push('Phone is required');
+      fieldErrors.phone = 'Phone is required';
+    }
+    if (!vendorForm.companyName.trim()) {
+      errors.push('Company name is required');
+      fieldErrors.companyName = 'Company name is required';
+    }
+    if (!vendorForm.category.trim()) {
+      errors.push('Category is required');
+      fieldErrors.category = 'Category is required';
+    }
     if (vendorForm.specialties.length === 0 || vendorForm.specialties.some(s => !s.name.trim())) {
       errors.push('At least one specialty service name is required');
     }
-    if (!vendorForm.hostelId) errors.push('Hostel is required');
+    if (!vendorForm.hostelId) {
+      errors.push('Hostel is required');
+      fieldErrors.hostelId = 'Hostel is required';
+    }
     
     if (errors.length > 0) {
+      setVendorFormErrors(fieldErrors);
       setToast({
         open: true,
         type: 'warning',
@@ -957,35 +1018,73 @@ const VendorList: React.FC<VendorListProps> = ({
     }
     
     setIsSubmitting(true);
+    setVendorFormErrors({});
     
     try {
       // Prepare request payload according to API specification
-      const requestPayload: any = {
+      const requestPayload = {
         name: vendorForm.name.trim(),
         companyName: vendorForm.companyName.trim(),
+        reference: vendorForm.reference.trim() || null,
         address: vendorForm.address.trim(),
         email: vendorForm.email.trim(),
         phone: vendorForm.phone.trim(),
+        alternatePhone: vendorForm.alternatePhone.trim() || null,
+        whatsapp: vendorForm.whatsapp.trim() || null,
+        country: vendorForm.country || null,
+        city: vendorForm.city || null,
+        businessDescription: vendorForm.businessDescription.trim() || null,
+        profilePhoto: vendorForm.profilePhoto ? vendorForm.profilePhoto.name : null,
         specialty: vendorForm.category.trim(), // Using category as specialty
         services: vendorForm.specialties.map(s => ({
           name: s.name.trim(),
           description: s.description?.trim() || null,
         })).filter(s => s.name),
         location: vendorForm.location.trim() || null,
-        attachments: vendorForm.attachments.length > 0 ? vendorForm.attachments : null,
+        attachments: (() => {
+          const baseAttachments = [
+            ...(vendorForm.cnicFront
+              ? [{
+                  title: 'CNIC Front',
+                  type: 'cnicFront',
+                  name: vendorForm.cnicFront.name,
+                  uploadedAt: new Date().toISOString(),
+                }]
+              : []),
+            ...(vendorForm.cnicBack
+              ? [{
+                  title: 'CNIC Back',
+                  type: 'cnicBack',
+                  name: vendorForm.cnicBack.name,
+                  uploadedAt: new Date().toISOString(),
+                }]
+              : []),
+            ...(vendorForm.businessCard
+              ? [{
+                  title: 'Business Card',
+                  type: 'businessCard',
+                  name: vendorForm.businessCard.name,
+                  uploadedAt: new Date().toISOString(),
+                }]
+              : []),
+            ...vendorForm.additionalAttachments
+              .filter((attachment) => attachment.title.trim() || attachment.file)
+              .map((attachment) => ({
+                title: attachment.title.trim() || attachment.file?.name || 'Attachment',
+                type: 'additional',
+                name: attachment.file?.name || attachment.title.trim(),
+                uploadedAt: new Date().toISOString(),
+              })),
+            ...vendorForm.attachments,
+          ];
+          return baseAttachments.length > 0 ? baseAttachments : null;
+        })(),
         paymentTerms: vendorForm.paymentTerms,
         hostelId: Number(vendorForm.hostelId),
         status: vendorForm.status,
       };
 
       // Add optional fields only if they have values
-      if (vendorForm.rating && vendorForm.rating.trim()) {
-        const ratingValue = parseFloat(vendorForm.rating);
-        if (!isNaN(ratingValue)) {
-          requestPayload.rating = ratingValue;
-        }
-      }
-
       console.log('📡 Sending vendor creation request:', requestPayload);
       
       // Make API call
@@ -1005,17 +1104,29 @@ const VendorList: React.FC<VendorListProps> = ({
           name: '',
           email: '',
           phone: '',
+          alternatePhone: '',
+          whatsapp: '',
+          reference: '',
           companyName: '',
+          address: '',
           country: '',
           city: '',
-          street: '',
+          location: '',
+          businessDescription: '',
+          profilePhoto: null,
+          previousProfilePhoto: '',
+          cnicFront: null,
+          cnicBack: null,
+          businessCard: null,
+          additionalAttachments: [{ id: '1', title: '', file: null }],
+          attachments: [],
           category: '',
-          specialties: [{ id: '1', name: '' }],
-          rating: '4.5',
+          specialties: [{ id: '1', name: '', description: '' }],
           hostelId: '',
           paymentTerms: 'prepaid',
           status: 'active',
         });
+        setVendorFormErrors({});
         setActiveTab('vendorInfo');
         
         setIsAddVendorModalOpen(false);
@@ -1047,18 +1158,179 @@ const VendorList: React.FC<VendorListProps> = ({
       name: '',
       email: '',
       phone: '',
+      alternatePhone: '',
+      whatsapp: '',
+      reference: '',
       companyName: '',
       address: '',
+      country: '',
+      city: '',
       location: '',
+      businessDescription: '',
+      profilePhoto: null,
+      previousProfilePhoto: '',
+      cnicFront: null,
+      cnicBack: null,
+      businessCard: null,
+      additionalAttachments: [{ id: '1', title: '', file: null }],
       attachments: [],
       category: '',
       specialties: [{ id: '1', name: '', description: '' }],
-      rating: '4.5',
       hostelId: '',
       paymentTerms: 'prepaid',
       status: 'active',
     });
     setActiveTab('vendorInfo');
+  };
+
+  const handleUpdateVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedVendor) return;
+
+    const errors: string[] = [];
+    const fieldErrors: Record<string, string> = {};
+    if (!vendorForm.name.trim()) {
+      errors.push('Vendor name is required');
+      fieldErrors.name = 'Vendor name is required';
+    }
+    if (!vendorForm.email.trim()) {
+      errors.push('Email is required');
+      fieldErrors.email = 'Email is required';
+    }
+    if (!vendorForm.phone.trim()) {
+      errors.push('Phone is required');
+      fieldErrors.phone = 'Phone is required';
+    }
+    if (!vendorForm.companyName.trim()) {
+      errors.push('Company name is required');
+      fieldErrors.companyName = 'Company name is required';
+    }
+    if (!vendorForm.category.trim()) {
+      errors.push('Category is required');
+      fieldErrors.category = 'Category is required';
+    }
+    if (vendorForm.specialties.length === 0 || vendorForm.specialties.some((s) => !s.name.trim())) {
+      errors.push('At least one specialty service name is required');
+      fieldErrors.specialties = 'At least one specialty service name is required';
+      fieldErrors.specialties = 'At least one specialty service name is required';
+    }
+    if (!vendorForm.hostelId) {
+      errors.push('Hostel is required');
+      fieldErrors.hostelId = 'Hostel is required';
+    }
+
+    if (errors.length > 0) {
+      setVendorFormErrors(fieldErrors);
+      setToast({
+        open: true,
+        type: 'warning',
+        message: 'Please fill in all required fields:\n' + errors.join('\n'),
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setVendorFormErrors({});
+
+    try {
+      const requestPayload = {
+        name: vendorForm.name.trim(),
+        companyName: vendorForm.companyName.trim(),
+        reference: vendorForm.reference.trim() || null,
+        address: vendorForm.address.trim(),
+        email: vendorForm.email.trim(),
+        phone: vendorForm.phone.trim(),
+        alternatePhone: vendorForm.alternatePhone.trim() || null,
+        whatsapp: vendorForm.whatsapp.trim() || null,
+        country: vendorForm.country || null,
+        city: vendorForm.city || null,
+        businessDescription: vendorForm.businessDescription.trim() || null,
+        profilePhoto: vendorForm.profilePhoto ? vendorForm.profilePhoto.name : null,
+        specialty: vendorForm.category.trim(),
+        services: vendorForm.specialties.map((s) => ({
+          name: s.name.trim(),
+          description: s.description?.trim() || null,
+        })).filter((s) => s.name),
+        location: vendorForm.location.trim() || null,
+        attachments: (() => {
+          const baseAttachments = [
+            ...(vendorForm.cnicFront ? [{ title: 'CNIC Front', type: 'cnicFront', name: vendorForm.cnicFront.name, uploadedAt: new Date().toISOString() }] : []),
+            ...(vendorForm.cnicBack ? [{ title: 'CNIC Back', type: 'cnicBack', name: vendorForm.cnicBack.name, uploadedAt: new Date().toISOString() }] : []),
+            ...(vendorForm.businessCard ? [{ title: 'Business Card', type: 'businessCard', name: vendorForm.businessCard.name, uploadedAt: new Date().toISOString() }] : []),
+            ...vendorForm.additionalAttachments
+              .filter((attachment) => attachment.title.trim() || attachment.file)
+              .map((attachment) => ({
+                title: attachment.title.trim() || attachment.file?.name || 'Attachment',
+                type: 'additional',
+                name: attachment.file?.name || attachment.title.trim(),
+                uploadedAt: new Date().toISOString(),
+              })),
+            ...vendorForm.attachments,
+          ];
+          return baseAttachments.length > 0 ? baseAttachments : null;
+        })(),
+        paymentTerms: vendorForm.paymentTerms,
+        hostelId: Number(vendorForm.hostelId),
+        status: vendorForm.status,
+      };
+
+      const response = await api.put(API_ROUTES.VENDOR.UPDATE(selectedVendor.id), requestPayload);
+
+      if (response.success && response.data) {
+        setToast({
+          open: true,
+          type: 'success',
+          message: response.message || `Vendor "${vendorForm.name}" updated successfully!`,
+        });
+
+        setVendorForm({
+          name: '',
+          email: '',
+          phone: '',
+          alternatePhone: '',
+          whatsapp: '',
+          reference: '',
+          companyName: '',
+          address: '',
+          country: '',
+          city: '',
+          location: '',
+          businessDescription: '',
+          profilePhoto: null,
+          previousProfilePhoto: '',
+          cnicFront: null,
+          cnicBack: null,
+          businessCard: null,
+          additionalAttachments: [{ id: '1', title: '', file: null }],
+          attachments: [],
+          category: '',
+          specialties: [{ id: '1', name: '', description: '' }],
+          hostelId: '',
+          paymentTerms: 'prepaid',
+          status: 'active',
+        });
+        setVendorFormErrors({});
+        setActiveTab('vendorInfo');
+        setSelectedVendor(null);
+        setIsEditVendorModalOpen(false);
+
+        if (selectedHostelId) {
+          fetchVendorsByHostel(selectedHostelId);
+        }
+      } else {
+        throw new Error(response.message || 'Failed to update vendor');
+      }
+    } catch (error: any) {
+      console.error('❌ Error updating vendor:', error);
+      setToast({
+        open: true,
+        type: 'error',
+        message: error.message || 'Failed to update vendor. Please try again.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle specialty service changes
@@ -1387,78 +1659,140 @@ const VendorList: React.FC<VendorListProps> = ({
                   <p className="text-gray-600">Loading vendor managements...</p>
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hostel</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attachments</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {allAssignments.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                              No vendor managements found.
-                            </td>
-                          </tr>
-                        ) : (
-                          allAssignments.map((assignment: any) => (
-                            <tr key={assignment.id} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {assignment.service?.name || 'N/A'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {assignment.vendor?.name || 'N/A'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {assignment.hostel?.name || 'N/A'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <Badge
-                                  variant={
-                                    assignment.isActive ? 'success' : 'warning'
-                                  }
-                                >
-                                  {assignment.isActive ? 'Active' : 'Inactive'}
-                                </Badge>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {assignment.attachment ? (
-                                  <a
-                                    href={assignment.attachment}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline"
-                                  >
-                                    View Attachment
-                                  </a>
-                                ) : (
-                                  <span className="text-gray-400">No attachment</span>
-                                )}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <button
-                                  onClick={() => {
-                                    const vendor = vendors.find(v => v.id === assignment.vendorId);
-                                    if (vendor) handleViewVendor(vendor);
-                                  }}
-                                  className="text-blue-600 hover:text-blue-900 mr-4"
-                                >
-                                  View
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                <div className="space-y-10">
+                  {filteredVendors.length === 0 ? (
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center text-gray-500">
+                      No vendors found. Try selecting a hostel or adjust your filters.
+                    </div>
+                  ) : null}
+
+                  {filteredVendors.length > 0 && (
+                    <>
+                      {(() => {
+                        const activeVendors = filteredVendors
+                          .filter((vendor: any) => getVendorStatus(vendor) === 'active')
+                          .map((vendor: any, index: number) => ({ ...vendor, rowNumber: index + 1 }));
+
+                        const inactiveVendors = filteredVendors
+                          .filter((vendor: any) => getVendorStatus(vendor) !== 'active')
+                          .map((vendor: any, index: number) => ({
+                            ...vendor,
+                            rowNumber: activeVendors.length + index + 1,
+                          }));
+
+                        const renderVendorTable = (title: string, description: string, vendorsList: any[]) => (
+                          <div>
+                            <div className="mb-4 rounded-2xl border-l-4 border-blue-500 bg-blue-50/70 p-4">
+                              <div className="flex items-center justify-between gap-4">
+                                <div>
+                                  <div className="text-sm uppercase tracking-wide text-blue-700 font-semibold">{title}</div>
+                                  <div className="text-sm text-blue-600">{description}</div>
+                                </div>
+                                <div className="text-sm font-semibold text-slate-700">Total vendors: {vendorsList.length}</div>
+                              </div>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+                              <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                  {vendorsList.map((vendor: any) => {
+                                    const isActive = getVendorStatus(vendor) === 'active';
+                                    return (
+                                      <tr key={vendor.id} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{vendor.rowNumber}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                          <div className="font-medium truncate">{vendor.name || 'N/A'}</div>
+                                          <div className="text-xs text-gray-500 truncate">{vendor.location || vendor.hostel?.name || 'No location'}</div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{vendor.companyName || 'N/A'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                          {vendor.contact?.phone || vendor.phone || 'No phone'}
+                                          <div className="text-xs text-gray-500 truncate">{vendor.contact?.email || vendor.email || 'No email'}</div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                          <Badge
+                                            variant={getVendorStatus(vendor) === 'active'
+                                              ? 'success'
+                                              : getVendorStatus(vendor) === 'suspended'
+                                                ? 'danger'
+                                                : 'warning'}
+                                          >
+                                            {vendor.statusLabel || vendor.status || (isActive ? 'Active' : 'Inactive')}
+                                          </Badge>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:items-center gap-2">
+                                          <button
+                                            onClick={() => handleViewVendor(vendor)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors font-medium text-sm"
+                                            title="View Vendor"
+                                          >
+                                            <EyeIcon className="w-4 h-4" />
+                                            View
+                                          </button>
+                                          <button
+                                            onClick={() => handleEditVendor(vendor)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-colors font-medium text-sm"
+                                            title="Edit Vendor"
+                                          >
+                                            <PencilIcon className="w-4 h-4" />
+                                            Edit
+                                          </button>
+                                          <button
+                                            onClick={() => handleToggleVendorStatus(vendor)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 text-sky-600 hover:bg-sky-100 rounded-lg transition-colors font-medium text-sm"
+                                            title={isActive ? 'Mark vendor as left/inactive' : 'Restore vendor to active'}
+                                          >
+                                            <ArrowPathIcon className="w-4 h-4" />
+                                            {isActive ? 'Mark Left' : 'Restore'}
+                                          </button>
+                                          <button
+                                            onClick={() => handleSuspendVendor(vendor)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors font-medium text-sm"
+                                            title="Suspend vendor"
+                                          >
+                                            <TrashIcon className="w-4 h-4" />
+                                            Suspend
+                                          </button>
+                                          <button
+                                            onClick={() => handleDeleteVendor(vendor)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors font-medium text-sm"
+                                            title="Delete Vendor"
+                                          >
+                                            <TrashIcon className="w-4 h-4" />
+                                            Delete
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+
+                        return (
+                          <>
+                            {activeVendors.length > 0 && renderVendorTable('Active Vendors', 'Vendors currently available and active.', activeVendors)}
+                            {inactiveVendors.length > 0 && (
+                              <div className="pt-6 border-t border-blue-200">
+                                {renderVendorTable('Inactive Vendors', 'Vendors that are currently inactive or marked left.', inactiveVendors)}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </>
+                  )}
                 </div>
               )}
             </motion.div>
@@ -1673,7 +2007,7 @@ const VendorList: React.FC<VendorListProps> = ({
               value={vendorForm.name}
               onChange={(e) => setVendorForm({ ...vendorForm, name: e.target.value })}
               placeholder="Enter vendor name"
-                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className={getVendorFieldClass('name')}
               required
             />
           </div>
@@ -1689,7 +2023,7 @@ const VendorList: React.FC<VendorListProps> = ({
                                 value={vendorForm.email}
                                 onChange={(e) => setVendorForm({ ...vendorForm, email: e.target.value })}
                                 placeholder="vendor@example.com"
-                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className={getVendorFieldClass('email')}
               required
             />
           </div>
@@ -1702,11 +2036,38 @@ const VendorList: React.FC<VendorListProps> = ({
                 value={vendorForm.phone}
                 onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })}
                                 placeholder="03001234567"
-                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className={getVendorFieldClass('phone')}
                 required
               />
                             </div>
             </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Alternate Phone
+                              </label>
+                              <input
+                                type="tel"
+                                value={vendorForm.alternatePhone}
+                                onChange={(e) => setVendorForm({ ...vendorForm, alternatePhone: e.target.value })}
+                                placeholder="Alternate phone"
+                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                WhatsApp Number
+                              </label>
+                              <input
+                                type="tel"
+                                value={vendorForm.whatsapp}
+                                onChange={(e) => setVendorForm({ ...vendorForm, whatsapp: e.target.value })}
+                                placeholder="WhatsApp number"
+                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+                          </div>
 
                           {/* Company Name */}
             <div>
@@ -1718,8 +2079,20 @@ const VendorList: React.FC<VendorListProps> = ({
                               value={vendorForm.companyName}
                               onChange={(e) => setVendorForm({ ...vendorForm, companyName: e.target.value })}
                               placeholder="Enter company name"
-                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className={getVendorFieldClass('companyName')}
                               required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Reference
+                            </label>
+                            <input
+                              type="text"
+                              value={vendorForm.reference}
+                              onChange={(e) => setVendorForm({ ...vendorForm, reference: e.target.value })}
+                              placeholder="Reference or source"
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                           </div>
 
@@ -1736,7 +2109,46 @@ const VendorList: React.FC<VendorListProps> = ({
                               className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                           </div>
-
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Country
+                              </label>
+                              <Select
+                                value={vendorForm.country}
+                                onChange={(value) => setVendorForm({ ...vendorForm, country: value, city: '' })}
+                                options={[
+                                  { value: '', label: 'Select Country' },
+                                  ...Object.keys(countryCityMap).map((country) => ({ value: country, label: country })),
+                                ]}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                City
+                              </label>
+                              <Select
+                                value={vendorForm.city}
+                                onChange={(value) => setVendorForm({ ...vendorForm, city: value })}
+                                options={[
+                                  { value: '', label: 'Select City' },
+                                  ...((countryCityMap[vendorForm.country] || []).map((city) => ({ value: city, label: city }))),
+                                ]}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Address
+                            </label>
+                            <input
+                              type="text"
+                              value={vendorForm.address}
+                              onChange={(e) => setVendorForm({ ...vendorForm, address: e.target.value })}
+                              placeholder="Enter address"
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
                           {/* Location (Google Map Link) */}
                           <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1749,6 +2161,54 @@ const VendorList: React.FC<VendorListProps> = ({
                               placeholder="https://maps.google.com/..."
                               className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Business Description
+                            </label>
+                            <textarea
+                              value={vendorForm.businessDescription}
+                              onChange={(e) => setVendorForm({ ...vendorForm, businessDescription: e.target.value })}
+                              placeholder="Describe the vendor or business"
+                              rows={4}
+                              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+                          <div className="flex flex-col items-center gap-4 py-4 rounded-lg border border-slate-200 bg-white p-4">
+                            <div className="relative w-28 h-28 rounded-full border border-slate-300 overflow-hidden bg-slate-100">
+                              {vendorForm.profilePhoto ? (
+                                <img
+                                  src={profilePhotoPreview || undefined}
+                                  alt="Profile preview"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : vendorForm.previousProfilePhoto ? (
+                                <img
+                                  src={vendorForm.previousProfilePhoto}
+                                  alt="Previous profile"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-slate-500 text-sm">
+                                  No Photo
+                                </div>
+                              )}
+                            </div>
+                            <label className="inline-flex cursor-pointer items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+                              <span>Choose Profile Photo</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] || null;
+                                  setVendorForm({ ...vendorForm, profilePhoto: file });
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                            {vendorForm.profilePhoto && (
+                              <p className="text-sm text-slate-600">Selected: {vendorForm.profilePhoto.name}</p>
+                            )}
                           </div>
 
                           {/* Hostel */}
@@ -1777,28 +2237,12 @@ const VendorList: React.FC<VendorListProps> = ({
                                 { value: 'active', label: 'Active' },
                                 { value: 'inactive', label: 'Inactive' },
                                 { value: 'pending', label: 'Pending' },
-                                { value: 'suspended', label: 'Suspended' },
+                                { value: 'suspended', label: 'Suspended due to Poor experience' },
                               ]}
                             />
                           </div>
 
-                          {/* Rating and Payment Terms Row */}
-                          <div className="grid grid-cols-2 gap-6">
-            <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Rating
-              </label>
-                              <input
-                                type="number"
-                                step="0.1"
-                                min="1"
-                                max="5"
-                value={vendorForm.rating}
-                                onChange={(e) => setVendorForm({ ...vendorForm, rating: e.target.value })}
-                                placeholder="4.5"
-                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
-                            </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                               <label className="block text-sm font-medium text-slate-700 mb-2">
                                 Payment Terms
@@ -1806,58 +2250,133 @@ const VendorList: React.FC<VendorListProps> = ({
                               <Select
                                 value={vendorForm.paymentTerms}
                                 onChange={(value) => setVendorForm({ ...vendorForm, paymentTerms: value })}
-                options={[
+                                options={[
                                   { value: 'prepaid', label: 'Prepaid' },
                                   { value: 'cod', label: 'Cash on Delivery (COD)' },
                                   { value: 'net15', label: 'Net 15' },
                                   { value: 'net30', label: 'Net 30' },
                                   { value: 'net45', label: 'Net 45' },
                                   { value: 'net60', label: 'Net 60' },
-                ]}
-              />
-            </div>
+                                ]}
+                              />
+                            </div>
                           </div>
 
-                          {/* Attachments */}
+                          {/* CNIC Documents */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                CNIC Front (Image)
+                              </label>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setVendorForm({ ...vendorForm, cnicFront: e.target.files?.[0] || null })}
+                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                              {vendorForm.cnicFront && (
+                                <p className="text-sm text-slate-600 mt-1">Selected: {vendorForm.cnicFront.name}</p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                CNIC Back (Image)
+                              </label>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setVendorForm({ ...vendorForm, cnicBack: e.target.files?.[0] || null })}
+                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                              {vendorForm.cnicBack && (
+                                <p className="text-sm text-slate-600 mt-1">Selected: {vendorForm.cnicBack.name}</p>
+                              )}
+                            </div>
+                          </div>
+
                           <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">
-                              Attachments
+                              Business Card
                             </label>
                             <input
                               type="file"
-                              multiple
-                              onChange={(e) => {
-                                const files = Array.from(e.target.files || []);
-                                const fileData = files.map((file) => ({
-                                  name: file.name,
-                                  url: URL.createObjectURL(file),
-                                  uploadedAt: new Date().toISOString(),
-                                }));
-                                setVendorForm({ ...vendorForm, attachments: [...vendorForm.attachments, ...fileData] });
-                              }}
+                              accept="image/*,application/pdf"
+                              onChange={(e) => setVendorForm({ ...vendorForm, businessCard: e.target.files?.[0] || null })}
                               className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
-                            {vendorForm.attachments.length > 0 && (
-                              <div className="mt-2 space-y-1">
-                                {vendorForm.attachments.map((file, idx) => (
-                                  <div key={idx} className="flex items-center justify-between text-sm text-slate-600 bg-slate-50 p-2 rounded">
-                                    <span>{file.name}</span>
+                            {vendorForm.businessCard && (
+                              <p className="text-sm text-slate-600 mt-1">Selected: {vendorForm.businessCard.name}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-sm font-medium text-slate-700">Additional Attachments</label>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setVendorForm({
+                                    ...vendorForm,
+                                    additionalAttachments: [
+                                      ...vendorForm.additionalAttachments,
+                                      { id: `${Date.now()}`, title: '', file: null },
+                                    ],
+                                  })
+                                }
+                                className="text-sm text-blue-600 hover:text-blue-800"
+                              >
+                                + Add Attachment
+                              </button>
+                            </div>
+                            <div className="space-y-4">
+                              {vendorForm.additionalAttachments.map((attachment, idx) => (
+                                <div key={attachment.id} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Title</label>
+                                    <input
+                                      type="text"
+                                      value={attachment.title}
+                                      onChange={(e) => {
+                                        const next = [...vendorForm.additionalAttachments];
+                                        next[idx] = { ...next[idx], title: e.target.value };
+                                        setVendorForm({ ...vendorForm, additionalAttachments: next });
+                                      }}
+                                      placeholder="Attachment title"
+                                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">File</label>
+                                    <input
+                                      type="file"
+                                      onChange={(e) => {
+                                        const next = [...vendorForm.additionalAttachments];
+                                        next[idx] = { ...next[idx], file: e.target.files?.[0] || null };
+                                        setVendorForm({ ...vendorForm, additionalAttachments: next });
+                                      }}
+                                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                    {attachment.file && (
+                                      <p className="text-sm text-slate-600 mt-1">Selected: {attachment.file.name}</p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
                                     <button
                                       type="button"
                                       onClick={() => {
                                         setVendorForm({
                                           ...vendorForm,
-                                          attachments: vendorForm.attachments.filter((_, i) => i !== idx),
+                                          additionalAttachments: vendorForm.additionalAttachments.filter((_, i) => i !== idx),
                                         });
                                       }}
-                                      className="text-red-500 hover:text-red-700"
+                                      className="text-sm text-red-600 hover:text-red-800"
                                     >
-                                      <XMarkIcon className="w-4 h-4" />
+                                      Remove
                                     </button>
                                   </div>
-                                ))}
-                              </div>
-                            )}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1874,6 +2393,7 @@ const VendorList: React.FC<VendorListProps> = ({
                               onChange={(value) => setVendorForm({ ...vendorForm, category: value })}
                               options={categoryOptions}
                               disabled={categoriesLoading}
+                              error={vendorFormErrors.category}
               />
             </div>
 
@@ -1894,9 +2414,12 @@ const VendorList: React.FC<VendorListProps> = ({
                                           value={specialty.name}
                                           onChange={(e) => handleSpecialtyChange(specialty.id, 'name', e.target.value)}
                                           placeholder="e.g., Plumbing, Cleaning, IT Services"
-                                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          className={getVendorFieldClass('specialties', 'w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2')}
                                           required
                                         />
+                                        {vendorFormErrors.specialties && (
+                                          <p className="mt-1 text-xs text-red-600">{vendorFormErrors.specialties}</p>
+                                        )}
                                       </div>
                                       <div>
                                         <label className="block text-xs text-slate-500 mb-1">
@@ -2046,13 +2569,6 @@ const VendorList: React.FC<VendorListProps> = ({
                   <p className="text-sm text-gray-400">No attachments</p>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
-                <p className="text-sm text-gray-900">
-                  {selectedVendor.rating?.display || (selectedVendor.rating?.average ? `${selectedVendor.rating.average}/5` : 'N/A')}
-                  {selectedVendor.rating?.totalReviews ? ` (${selectedVendor.rating.totalReviews} reviews)` : ''}
-                </p>
-              </div>
             </div>
             {selectedVendor.serviceTags && selectedVendor.serviceTags.length > 0 && (
               <div>
@@ -2157,6 +2673,42 @@ const VendorList: React.FC<VendorListProps> = ({
                     <div className="flex-1 overflow-y-auto p-6">
                       {activeTab === 'vendorInfo' && (
                         <div className="space-y-6">
+                                                    <div className="flex flex-col items-center gap-4 py-4 rounded-lg border border-slate-200 bg-white p-4">
+                            <div className="relative w-28 h-28 rounded-full border border-slate-300 overflow-hidden bg-slate-100">
+                              {vendorForm.profilePhoto ? (
+                                <img
+                                  src={profilePhotoPreview || undefined}
+                                  alt="Profile preview"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : vendorForm.previousProfilePhoto ? (
+                                <img
+                                  src={vendorForm.previousProfilePhoto}
+                                  alt="Previous profile"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-slate-500 text-sm">
+                                  No Photo
+                                </div>
+                              )}
+                            </div>
+                            <label className="inline-flex cursor-pointer items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+                              <span>Choose Profile Photo</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] || null;
+                                  setVendorForm({ ...vendorForm, profilePhoto: file });
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                            {vendorForm.profilePhoto && (
+                              <p className="text-sm text-slate-600">Selected: {vendorForm.profilePhoto.name}</p>
+                            )}
+                          </div>
                           {/* Vendor Name */}
                           <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -2167,7 +2719,7 @@ const VendorList: React.FC<VendorListProps> = ({
                               value={vendorForm.name}
                               onChange={(e) => setVendorForm({ ...vendorForm, name: e.target.value })}
                               placeholder="Enter vendor name"
-                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className={getVendorFieldClass('name')}
                               required
                             />
                           </div>
@@ -2183,7 +2735,7 @@ const VendorList: React.FC<VendorListProps> = ({
                                 value={vendorForm.email}
                                 onChange={(e) => setVendorForm({ ...vendorForm, email: e.target.value })}
                                 placeholder="vendor@example.com"
-                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                  className={getVendorFieldClass('email')}
                                 required
                               />
                             </div>
@@ -2196,8 +2748,35 @@ const VendorList: React.FC<VendorListProps> = ({
                                 value={vendorForm.phone}
                                 onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })}
                                 placeholder="03001234567"
-                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                className={getVendorFieldClass('phone')}
                                 required
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Alternate Phone
+                              </label>
+                              <input
+                                type="tel"
+                                value={vendorForm.alternatePhone}
+                                onChange={(e) => setVendorForm({ ...vendorForm, alternatePhone: e.target.value })}
+                                placeholder="Alternate phone"
+                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                WhatsApp Number
+                              </label>
+                              <input
+                                type="tel"
+                                value={vendorForm.whatsapp}
+                                onChange={(e) => setVendorForm({ ...vendorForm, whatsapp: e.target.value })}
+                                placeholder="WhatsApp number"
+                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               />
                             </div>
                           </div>
@@ -2212,12 +2791,53 @@ const VendorList: React.FC<VendorListProps> = ({
                               value={vendorForm.companyName}
                               onChange={(e) => setVendorForm({ ...vendorForm, companyName: e.target.value })}
                               placeholder="Enter company name"
-                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className={getVendorFieldClass('companyName')}
                               required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Reference
+                            </label>
+                            <input
+                              type="text"
+                              value={vendorForm.reference}
+                              onChange={(e) => setVendorForm({ ...vendorForm, reference: e.target.value })}
+                              placeholder="Reference or source"
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                           </div>
 
                           {/* Address */}
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Country
+                              </label>
+                              <Select
+                                value={vendorForm.country}
+                                onChange={(value) => setVendorForm({ ...vendorForm, country: value, city: '' })}
+                                options={[
+                                  { value: '', label: 'Select Country' },
+                                  ...Object.keys(countryCityMap).map((country) => ({ value: country, label: country })),
+                                ]}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                City
+                              </label>
+                              <Select
+                                value={vendorForm.city}
+                                onChange={(value) => setVendorForm({ ...vendorForm, city: value })}
+                                options={[
+                                  { value: '', label: 'Select City' },
+                                  ...((countryCityMap[vendorForm.country] || []).map((city) => ({ value: city, label: city }))),
+                                ]}
+                              />
+                            </div>
+                          </div>
                           <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">
                               Address
@@ -2244,6 +2864,19 @@ const VendorList: React.FC<VendorListProps> = ({
                               className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                           </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Business Description
+                            </label>
+                            <textarea
+                              value={vendorForm.businessDescription}
+                              onChange={(e) => setVendorForm({ ...vendorForm, businessDescription: e.target.value })}
+                              placeholder="Describe the vendor or business"
+                              rows={4}
+                              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                          </div>
+
 
                           {/* Hostel */}
                           <div>
@@ -2271,28 +2904,12 @@ const VendorList: React.FC<VendorListProps> = ({
                                 { value: 'active', label: 'Active' },
                                 { value: 'inactive', label: 'Inactive' },
                                 { value: 'pending', label: 'Pending' },
-                                { value: 'suspended', label: 'Suspended' },
+                                { value: 'suspended', label: 'Suspended due to Poor experience' },
                               ]}
                             />
                           </div>
 
-                          {/* Rating and Payment Terms Row */}
-                          <div className="grid grid-cols-2 gap-6">
-                            <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Rating
-                              </label>
-                              <input
-                                type="number"
-                                step="0.1"
-                                min="1"
-                                max="5"
-                                value={vendorForm.rating}
-                                onChange={(e) => setVendorForm({ ...vendorForm, rating: e.target.value })}
-                                placeholder="4.5"
-                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              />
-                            </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                               <label className="block text-sm font-medium text-slate-700 mb-2">
                                 Payment Terms
@@ -2311,6 +2928,123 @@ const VendorList: React.FC<VendorListProps> = ({
                               />
                             </div>
                           </div>
+
+                          {/* CNIC Documents */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                CNIC Front (Image)
+                              </label>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setVendorForm({ ...vendorForm, cnicFront: e.target.files?.[0] || null })}
+                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                              {vendorForm.cnicFront && (
+                                <p className="text-sm text-slate-600 mt-1">Selected: {vendorForm.cnicFront.name}</p>
+                              )}
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                CNIC Back (Image)
+                              </label>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setVendorForm({ ...vendorForm, cnicBack: e.target.files?.[0] || null })}
+                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                              {vendorForm.cnicBack && (
+                                <p className="text-sm text-slate-600 mt-1">Selected: {vendorForm.cnicBack.name}</p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Business Card
+                            </label>
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              onChange={(e) => setVendorForm({ ...vendorForm, businessCard: e.target.files?.[0] || null })}
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                            {vendorForm.businessCard && (
+                              <p className="text-sm text-slate-600 mt-1">Selected: {vendorForm.businessCard.name}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-sm font-medium text-slate-700">Additional Attachments</label>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setVendorForm({
+                                    ...vendorForm,
+                                    additionalAttachments: [
+                                      ...vendorForm.additionalAttachments,
+                                      { id: `${Date.now()}`, title: '', file: null },
+                                    ],
+                                  })
+                                }
+                                className="text-sm text-blue-600 hover:text-blue-800"
+                              >
+                                + Add Attachment
+                              </button>
+                            </div>
+                            <div className="space-y-4">
+                              {vendorForm.additionalAttachments.map((attachment, idx) => (
+                                <div key={attachment.id} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Title</label>
+                                    <input
+                                      type="text"
+                                      value={attachment.title}
+                                      onChange={(e) => {
+                                        const next = [...vendorForm.additionalAttachments];
+                                        next[idx] = { ...next[idx], title: e.target.value };
+                                        setVendorForm({ ...vendorForm, additionalAttachments: next });
+                                      }}
+                                      placeholder="Attachment title"
+                                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">File</label>
+                                    <input
+                                      type="file"
+                                      onChange={(e) => {
+                                        const next = [...vendorForm.additionalAttachments];
+                                        next[idx] = { ...next[idx], file: e.target.files?.[0] || null };
+                                        setVendorForm({ ...vendorForm, additionalAttachments: next });
+                                      }}
+                                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                    {attachment.file && (
+                                      <p className="text-sm text-slate-600 mt-1">Selected: {attachment.file.name}</p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setVendorForm({
+                                          ...vendorForm,
+                                          additionalAttachments: vendorForm.additionalAttachments.filter((_, i) => i !== idx),
+                                        });
+                                      }}
+                                      className="text-sm text-red-600 hover:text-red-800"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       )}
 
@@ -2326,6 +3060,7 @@ const VendorList: React.FC<VendorListProps> = ({
                               onChange={(value) => setVendorForm({ ...vendorForm, category: value })}
                               options={categoryOptions}
                               disabled={categoriesLoading}
+                              error={vendorFormErrors.category}
                             />
                           </div>
 
@@ -2346,9 +3081,12 @@ const VendorList: React.FC<VendorListProps> = ({
                                           value={specialty.name}
                                           onChange={(e) => handleSpecialtyChange(specialty.id, 'name', e.target.value)}
                                           placeholder="e.g., Plumbing, Cleaning, IT Services"
-                                          className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                          className={getVendorFieldClass('specialties', 'w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2')}
                                           required
                                         />
+                                        {vendorFormErrors.specialties && (
+                                          <p className="mt-1 text-xs text-red-600">{vendorFormErrors.specialties}</p>
+                                        )}
                                       </div>
                                       <div>
                                         <label className="block text-xs text-slate-500 mb-1">

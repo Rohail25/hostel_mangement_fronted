@@ -20,14 +20,27 @@ import {
 } from '@heroicons/react/24/outline';
 import { API_BASE_URL } from '../../../../services/api.config';
 
+const countryCityMap: Record<string, string[]> = {
+  Pakistan: ['Islamabad', 'Lahore', 'Karachi', 'Peshawar', 'Quetta', 'Multan'],
+  'United States': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Miami'],
+  India: ['Delhi', 'Mumbai', 'Bangalore', 'Hyderabad', 'Chennai'],
+  'United Kingdom': ['London', 'Manchester', 'Liverpool', 'Birmingham', 'Leeds'],
+};
+
 interface VendorFormData {
   name: string;
   email: string;
   phone: string;
+  alternatePhone: string;
+  whatsapp: string;
+  reference: string;
   companyName: string;
   address: string;
+  country: string;
+  city: string;
   location: string;
   category: string;
+  businessDescription: string;
   specialties: Array<{
     id: string;
     name: string;
@@ -37,6 +50,8 @@ interface VendorFormData {
   hostelId: string;
   paymentTerms: string;
   status: string;
+  profilePhoto: File | null;
+  profilePhotoPreview: string;
   attachments: any[];
 }
 
@@ -68,15 +83,23 @@ const VendorForm: React.FC<VendorFormProps> = ({
     name: '',
     email: '',
     phone: '',
+    alternatePhone: '',
+    whatsapp: '',
+    reference: '',
     companyName: '',
     address: '',
+    country: '',
+    city: '',
     location: '',
     category: '',
+    businessDescription: '',
     specialties: [{ id: '1', name: '', description: '' }],
     rating: '4.5',
     hostelId: '',
     paymentTerms: 'prepaid',
     status: 'active',
+    profilePhoto: null,
+    profilePhotoPreview: '',
     attachments: [],
   });
 
@@ -85,7 +108,11 @@ const VendorForm: React.FC<VendorFormProps> = ({
     if (!isOpen) return;
     
     if (initialData) {
-      setFormData(prev => ({ ...prev, ...initialData }));
+      setFormData(prev => ({
+        ...prev,
+        ...initialData,
+        profilePhotoPreview: (initialData as any).profilePhoto || prev.profilePhotoPreview,
+      }));
       setActiveTab('personal');
     } else if (!editingId) {
       setFormData({
@@ -215,59 +242,157 @@ const VendorForm: React.FC<VendorFormProps> = ({
                 {/* Tab Content - Personal */}
                 {activeTab === 'personal' && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Vendor Name <span className="text-red-500">*</span>
-                        </label>
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                      <div className="rounded-3xl border border-slate-200 bg-white p-5 text-center">
+                        <div className="mx-auto mb-4 h-28 w-28 overflow-hidden rounded-full bg-slate-100">
+                          {formData.profilePhotoPreview ? (
+                            <img
+                              src={formData.profilePhotoPreview}
+                              alt="Vendor profile"
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-slate-400">
+                              <UserIcon className="w-12 h-12" />
+                            </div>
+                          )}
+                        </div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Profile Photo</label>
                         <input
-                          type="text"
-                          required
+                          type="file"
                           disabled={isReadOnly}
-                          value={formData.name}
-                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="Vendor Full Name"
+                          accept="image/*"
+                          onChange={(e) => {
+                            if (!e.target.files?.[0]) return;
+                            const file = e.target.files[0];
+                            setFormData({
+                              ...formData,
+                              profilePhoto: file,
+                              profilePhotoPreview: URL.createObjectURL(file),
+                            });
+                          }}
+                          className="w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-purple-600 file:px-4 file:py-2 file:text-sm file:text-white"
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Email Address
-                        </label>
-                        <input
-                          type="email"
-                          disabled={isReadOnly}
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="vendor@example.com"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Phone Number <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="tel"
-                          required
-                          disabled={isReadOnly}
-                          value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="+1 234 567 8900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Hostel <span className="text-red-500">*</span>
-                        </label>
-                        <Select
-                          disabled={isReadOnly}
-                          value={formData.hostelId}
-                          onChange={(value) => setFormData({ ...formData, hostelId: value })}
-                          options={hostelOptions.filter(opt => opt.value !== '')}
-                          placeholder={hostelsLoading ? "Loading hostels..." : "Select Hostel"}
-                        />
+                      <div className="lg:col-span-2 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Vendor Name <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              disabled={isReadOnly}
+                              value={formData.name}
+                              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              placeholder="Vendor Full Name"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Reference
+                            </label>
+                            <input
+                              type="text"
+                              disabled={isReadOnly}
+                              value={formData.reference}
+                              onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              placeholder="Reference or source"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Email Address
+                            </label>
+                            <input
+                              type="email"
+                              disabled={isReadOnly}
+                              value={formData.email}
+                              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              placeholder="vendor@example.com"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Phone Number <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="tel"
+                              required
+                              disabled={isReadOnly}
+                              value={formData.phone}
+                              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              placeholder="+1 234 567 8900"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              WhatsApp Number
+                            </label>
+                            <input
+                              type="tel"
+                              disabled={isReadOnly}
+                              value={formData.whatsapp}
+                              onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              placeholder="WhatsApp number"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Second Phone
+                            </label>
+                            <input
+                              type="tel"
+                              disabled={isReadOnly}
+                              value={formData.alternatePhone}
+                              onChange={(e) => setFormData({ ...formData, alternatePhone: e.target.value })}
+                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              placeholder="Alternate phone"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Country
+                            </label>
+                            <Select
+                              disabled={isReadOnly}
+                              value={formData.country}
+                              onChange={(value) => setFormData({ ...formData, country: value, city: '' })}
+                              options={Object.keys(countryCityMap).map((country) => ({ value: country, label: country }))}
+                              placeholder="Select country"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              City
+                            </label>
+                            <Select
+                              disabled={isReadOnly}
+                              value={formData.city}
+                              onChange={(value) => setFormData({ ...formData, city: value })}
+                              options={(countryCityMap[formData.country] || []).map((city) => ({ value: city, label: city }))}
+                              placeholder="Select city"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                              Hostel <span className="text-red-500">*</span>
+                            </label>
+                            <Select
+                              disabled={isReadOnly}
+                              value={formData.hostelId}
+                              onChange={(value) => setFormData({ ...formData, hostelId: value })}
+                              options={hostelOptions.filter(opt => opt.value !== '')}
+                              placeholder={hostelsLoading ? 'Loading hostels...' : 'Select Hostel'}
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -301,6 +426,19 @@ const VendorForm: React.FC<VendorFormProps> = ({
                           onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                           className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-50 disabled:text-slate-500"
                           placeholder="e.g., Maintenance, Supplies"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Business Description
+                        </label>
+                        <textarea
+                          disabled={isReadOnly}
+                          value={formData.businessDescription}
+                          onChange={(e) => setFormData({ ...formData, businessDescription: e.target.value })}
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-slate-50 disabled:text-slate-500"
+                          rows={4}
+                          placeholder="Describe the company business"
                         />
                       </div>
                       <div className="md:col-span-2">
@@ -342,6 +480,22 @@ const VendorForm: React.FC<VendorFormProps> = ({
                             { value: 'postpaid', label: 'Postpaid' },
                             { value: 'net-30', label: 'Net 30' },
                             { value: 'on-delivery', label: 'On Delivery' },
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Status
+                        </label>
+                        <Select
+                          disabled={isReadOnly}
+                          value={formData.status}
+                          onChange={(value) => setFormData({ ...formData, status: value })}
+                          options={[
+                            { value: 'active', label: 'Active' },
+                            { value: 'inactive', label: 'Inactive' },
+                            { value: 'pending', label: 'Pending' },
+                            { value: 'suspended', label: 'Suspended due to Poor experience' },
                           ]}
                         />
                       </div>

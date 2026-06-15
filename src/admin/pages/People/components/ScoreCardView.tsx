@@ -129,6 +129,20 @@ const ScoreCardView: React.FC<ScoreCardViewProps> = ({
                 </div>
               </div>
             </div>
+            {currentScore.referrals !== undefined || currentScore.timePeriod ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div className="rounded-2xl bg-white p-4 border border-blue-100">
+                  <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Referrals</p>
+                  <p className="text-2xl font-semibold text-gray-900">{currentScore.referrals ?? 0}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-4 border border-blue-100">
+                  <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Time Period</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {currentScore.timePeriod || 'Not recorded'}
+                  </p>
+                </div>
+              </div>
+            ) : null}
             {currentScore.remarks && (
               <div className="mt-4 pt-4 border-t border-blue-200">
                 <p className="text-sm text-gray-700">
@@ -179,6 +193,12 @@ const ScoreCardView: React.FC<ScoreCardViewProps> = ({
                     {type === 'Tenant' ? 'Cleanliness' : 'Quality'}: {record.cleanliness}/5
                   </div>
                 </div>
+                {(record.referrals !== undefined || record.timePeriod) && (
+                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-2">
+                    {record.referrals !== undefined && <div>Referrals: {record.referrals}</div>}
+                    {record.timePeriod && <div>Time Period: {record.timePeriod}</div>}
+                  </div>
+                )}
                 {record.remarks && (
                   <p className="text-sm text-gray-700 mt-2 italic">"{record.remarks}"</p>
                 )}

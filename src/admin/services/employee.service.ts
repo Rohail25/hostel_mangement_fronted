@@ -70,6 +70,7 @@ export interface EmployeeListItem {
   status: string;
   profilePhoto: string | null;
   joinDate: string;
+  terminationDate: string | null;
   department: string | null;
   designation: string | null;
   [key: string]: any;
@@ -93,6 +94,7 @@ export const getAllEmployees = async (): Promise<EmployeeListItem[]> => {
         status: emp.status || 'active',
         profilePhoto: emp.profilePhoto,
         joinDate: emp.joinDate,
+        terminationDate: emp.terminationDate,
         department: emp.department,
         designation: emp.designation,
         employeeCode: emp.employeeCode,
@@ -136,6 +138,7 @@ export const getEmployeesByHostel = async (hostelId: number): Promise<EmployeeLi
         status: emp.status || 'active',
         profilePhoto: emp.profilePhoto,
         joinDate: emp.joinDate,
+        terminationDate: emp.terminationDate,
         department: emp.department,
         designation: emp.designation,
         employeeCode: emp.employeeCode,

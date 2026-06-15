@@ -32,6 +32,7 @@ import {
   WrenchScrewdriverIcon,
 } from '@heroicons/react/24/outline';
 import { Button } from '../../components/Button';
+import { Modal } from '../../components/Modal';
 import jsPDF from 'jspdf';
 import { Toast } from '../../components/Toast';
 import type { ToastType } from '../../types/common';
@@ -73,6 +74,7 @@ interface SettingCard {
   permissionResource?: string; // Resource name for permission check (e.g., 'hostel_info', 'user_roles')
   permissionAction?: string; // Action name for permission check (e.g., 'view_list')
   alwaysVisible?: boolean; // If true, card is always visible (e.g., Personal Information, Change Password)
+  adminOnly?: boolean; // If true, visible only to admin users
 }
 
 interface LoginPasswordModalProps {
@@ -768,10 +770,17 @@ const SettingsForm: React.FC = () => {
   const [isViewRoleOpen, setIsViewRoleOpen] = useState(false);
   const [rolesRefreshTrigger, setRolesRefreshTrigger] = useState(0);
   const [showHostelsList, setShowHostelsList] = useState(false);
+  const [isOverviewBannerOpen, setIsOverviewBannerOpen] = useState(false);
+  const [overviewBannerConfig, setOverviewBannerConfig] = useState({
+    title: 'HOW DO YOU KNOW YOUR BUSINESS? WE ARE HERE WITH KHANA HUB TO HELP YOU UNDERSTAND YOUR BUSINESS LIKE CEOs & CFOs.',
+    subtitle: 'Take help from AI to understand it better and make smarter decisions with real-time insights.',
+    primaryButtonLabel: 'Explore AI Insights',
+    secondaryButtonLabel: 'Customize Statement',
+  });
+  const [showVendorCategories, setShowVendorCategories] = useState(false);
   const [isAddHostelOpen, setIsAddHostelOpen] = useState(false);
   const [editingHostel, setEditingHostel] = useState<Hostel | null>(null);
   const [hostelsRefreshTrigger, setHostelsRefreshTrigger] = useState(0);
-  const [showVendorCategories, setShowVendorCategories] = useState(false);
   const [showVendorServices, setShowVendorServices] = useState(false);
   const [showCurrencyManagement, setShowCurrencyManagement] = useState(false);
 
@@ -782,7 +791,12 @@ const SettingsForm: React.FC = () => {
       return true;
     }
 
-    // Admin and Owner can see all cards
+    // Admin-only cards
+    if (card.adminOnly) {
+      return !!(user?.isAdmin || user?.roleType === 'admin');
+    }
+
+    // Admin and Owner can see all other cards
     if (user?.isAdmin || user?.roleType === 'admin' || user?.roleType === 'owner') {
       return true;
     }
@@ -832,6 +846,16 @@ const SettingsForm: React.FC = () => {
       },
       permissionResource: 'hostel_info',
       permissionAction: 'view_list',
+    },
+    {
+      id: 'overview-banner',
+      title: 'Admin Overview Banner',
+      description: 'Edit the admin dashboard headline, subtitle, and button labels for future updates.',
+      icon: DocumentTextIcon,
+      onClick: () => {
+        setIsOverviewBannerOpen(true);
+      },
+      adminOnly: true,
     },
     // {
     //   id: 'region-currency',
@@ -1042,6 +1066,35 @@ const SettingsForm: React.FC = () => {
   const handleEditUserRole = (role: UserRole) => {
     setEditingRole(role);
     setIsNewUserRoleOpen(true);
+  };
+
+  const handleOverviewBannerChange = (field: string, value: string) => {
+    setOverviewBannerConfig((prev) => ({ ...prev, [field]: value }));
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('adminOverviewBannerConfig');
+
+    if (stored) {
+      try {
+        setOverviewBannerConfig(JSON.parse(stored));
+      } catch (err) {
+        // ignore invalid stored data
+      }
+    }
+  }, []);
+
+  const handleSaveOverviewBanner = () => {
+    const storedConfig = {
+      title: overviewBannerConfig.title,
+      subtitle: overviewBannerConfig.subtitle,
+      primaryButtonLabel: overviewBannerConfig.primaryButtonLabel,
+      secondaryButtonLabel: overviewBannerConfig.secondaryButtonLabel,
+    };
+    window.localStorage.setItem('adminOverviewBannerConfig', JSON.stringify(storedConfig));
+    window.dispatchEvent(new Event('adminOverviewBannerUpdated'));
+    setIsOverviewBannerOpen(false);
   };
 
   // Handle user role modal close
@@ -1595,6 +1648,59 @@ const SettingsForm: React.FC = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Overview Banner Settings Modal */}
+      <Modal
+        isOpen={isOverviewBannerOpen}
+        onClose={() => setIsOverviewBannerOpen(false)}
+        title="Edit Admin Overview Banner"
+        size="lg"
+      >
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700">Headline</label>
+            <textarea
+              value={overviewBannerConfig.title}
+              onChange={(e) => handleOverviewBannerChange('title', e.target.value)}
+              className="mt-2 w-full min-h-24 rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700">Subtitle</label>
+            <textarea
+              value={overviewBannerConfig.subtitle}
+              onChange={(e) => handleOverviewBannerChange('subtitle', e.target.value)}
+              className="mt-2 w-full min-h-24 rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700">Primary button label</label>
+              <input
+                value={overviewBannerConfig.primaryButtonLabel}
+                onChange={(e) => handleOverviewBannerChange('primaryButtonLabel', e.target.value)}
+                className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700">Secondary button label</label>
+              <input
+                value={overviewBannerConfig.secondaryButtonLabel}
+                onChange={(e) => handleOverviewBannerChange('secondaryButtonLabel', e.target.value)}
+                className="mt-2 w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="secondary" onClick={() => setIsOverviewBannerOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleSaveOverviewBanner}>
+              Save Banner Settings
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Toast notification */}
       <Toast

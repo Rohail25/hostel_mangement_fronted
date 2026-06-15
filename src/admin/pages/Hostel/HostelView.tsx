@@ -13,8 +13,8 @@ import {
   BeakerIcon,
   PencilIcon,
   TrashIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
-import hostelsData from '../../mock/hostels.json';
 import tenantsData from '../../mock/tenants.json';
 import employeesData from '../../mock/employees.json';
 import vendorsData from '../../mock/vendors.json';
@@ -33,9 +33,61 @@ import { api } from '../../../services/apiClient';
 import { API_ROUTES, API_BASE_URL } from '../../../services/api.config';
 import type { Hostel, ArchitectureData, RoomFormData } from '../../types/hostel';
 import type { ToastType } from '../../types/common';
-import ROUTES from '../../routes/routePaths';
 import { useAuth } from '../../context/AuthContext';
 import { getRolePrefix } from '../../../components/ProtectedRoute';
+
+const normalizeAmenities = (amenities: any): string[] => {
+  if (Array.isArray(amenities)) {
+    return amenities;
+  }
+
+  if (typeof amenities === 'string' && amenities.trim()) {
+    try {
+      const parsed = JSON.parse(amenities);
+      return Array.isArray(parsed) ? parsed : [amenities];
+    } catch {
+      return [amenities];
+    }
+  }
+
+  return [];
+};
+
+const getMessMealPattern = (hostelId: string | number) => {
+  const entries = messService.getMessEntriesByHostel(hostelId);
+  if (!entries.length) {
+    return { count: 0, label: 'No mess plan', details: 'Mess plan not configured' };
+  }
+
+  const mealSlots = [
+    { key: 'breakfast', label: 'Breakfast' },
+    { key: 'lunch', label: 'Lunch' },
+    { key: 'dinner', label: 'Dinner' },
+  ] as const;
+
+  const representativeEntry = entries[0];
+  const activeMeals = mealSlots.filter(({ key }) => Array.isArray((representativeEntry as any)[key]?.items) && (representativeEntry as any)[key].items.length > 0);
+  const count = activeMeals.length;
+
+  if (count === 1) {
+    return { count, label: '1 Time', details: 'Breakfast only' };
+  }
+
+  if (count === 2) {
+    const hasLunch = activeMeals.some((meal) => meal.key === 'lunch');
+    return {
+      count,
+      label: '2 Time',
+      details: hasLunch ? 'Breakfast + Lunch' : 'Breakfast + Dinner',
+    };
+  }
+
+  if (count >= 3) {
+    return { count: 3, label: '3 Time', details: 'Breakfast + Lunch + Dinner' };
+  }
+
+  return { count: 0, label: 'No mess plan', details: 'Mess plan not configured' };
+};
 
 /**
  * Hostel View page with Details and Architecture tabs
@@ -47,7 +99,7 @@ const HostelView: React.FC = () => {
   const { user } = useAuth();
   const rolePrefix = getRolePrefix(user?.roleType || 'user');
   // Determine if user is owner to use correct routes
-  const isOwner = user?.roleType === 'owner' || user?.role?.name === 'owner' || user?.role?.roleName === 'owner';
+  const isOwner = user?.roleType === 'owner' || user?.role?.name === 'owner';
   const floorRoutes = isOwner ? API_ROUTES.OWNER.FLOOR : API_ROUTES.FLOOR;
   const roomRoutes = isOwner ? API_ROUTES.OWNER.ROOM : API_ROUTES.ROOM;
   const bedRoutes = isOwner ? API_ROUTES.OWNER.BED : API_ROUTES.BED;
@@ -115,6 +167,14 @@ const HostelView: React.FC = () => {
       totalEmployees,
       totalTenants,
     };
+  }, [hostel]);
+
+  const messMealPattern = React.useMemo(() => {
+    if (!hostel) {
+      return { count: 0, label: 'No mess plan', details: 'Mess plan not configured' };
+    }
+
+    return getMessMealPattern(hostel.id);
   }, [hostel]);
 
   useEffect(() => {
@@ -189,6 +249,7 @@ const HostelView: React.FC = () => {
           managerName: hostelData.manager?.username || hostelData.manager?.name || 'N/A',
           managerPhone: hostelData.contactInfo?.phone || 'N/A',
           notes: hostelData.description,
+          amenities: normalizeAmenities(hostelData.amenities),
           category: categoryValue,
           type: typeValue,
         };
@@ -683,8 +744,8 @@ const HostelView: React.FC = () => {
                   <p className="text-sm text-slate-600 font-medium">Category</p>
                   <p className="text-lg font-semibold text-slate-900 mt-1">
                     {hostel.category === 'home2' ? 'Second Home' : 
-                     hostel.category === 'luxury' ? 'Hotel Botek' : 
-                     hostel.category === 'back_pack' ? 'Back Pack' : 
+                     hostel.category === 'luxury' ? 'Hotel Botique' : 
+                     hostel.category === 'back_pack' ? 'BackPacking' : 
                      hostel.category}
                   </p>
                 </div>
@@ -705,6 +766,45 @@ const HostelView: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Mess Plan + Amenities (same row) */}
+            <div className="md:col-span-2 flex flex-col md:flex-row items-start gap-18">
+              {/* Mess Plan */}
+              <div className="flex items-start gap-4 md:w-1/3">
+                <div className="p-3 bg-amber-100 rounded-lg">
+                  <ClockIcon className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-slate-600 font-medium">Mess Plan</p>
+                  <p className="text-lg font-semibold text-slate-900 mt-1">
+                    {messMealPattern.label}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-1">{messMealPattern.details}</p>
+                </div>
+              </div>
+
+              {/* Amenities */}
+              {hostel.amenities && hostel.amenities.length > 0 && (
+                <div className="flex-1 flex items-start gap-4">
+                  <div className="p-3 bg-amber-100 rounded-lg">
+                    <BuildingOfficeIcon className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-600 font-medium">Amenities</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {hostel.amenities.map((amenity) => (
+                        <span
+                          key={amenity}
+                          className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700"
+                        >
+                          {amenity}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Stats */}

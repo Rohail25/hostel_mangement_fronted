@@ -4,6 +4,7 @@
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { StatCard } from '../components/StatCard';
 import { formatCurrency } from '../types/common';
@@ -129,6 +130,20 @@ const DEFAULT_DASHBOARD_DATA: OverviewDashboardResponse['data'] = {
   },
 };
 
+interface BannerConfig {
+  title: string;
+  subtitle: string;
+  primaryButtonLabel: string;
+  secondaryButtonLabel: string;
+}
+
+const DEFAULT_BANNER_CONFIG: BannerConfig = {
+  title: 'HOW DO YOU KNOW YOUR BUSINESS? WE ARE HERE WITH KHANA HUB TO HELP YOU UNDERSTAND YOUR BUSINESS LIKE CEOs & CFOs.',
+  subtitle: 'Take help from AI to understand it better and make smarter decisions with real-time insights.',
+  primaryButtonLabel: 'Explore AI Insights',
+  secondaryButtonLabel: 'Customize Statement',
+};
+
 const normalizeDashboardData = (
   data?: Partial<OverviewDashboardResponse['data']> | null
 ): OverviewDashboardResponse['data'] => {
@@ -229,9 +244,41 @@ const normalizeDashboardData = (
  * Professional overview dashboard page
  */
 const Overview: React.FC = () => {
+  const navigate = useNavigate();
   const { currencySymbol } = useCurrency();
   const { user } = useAuth();
   
+  const [bannerConfig, setBannerConfig] = useState<BannerConfig>(DEFAULT_BANNER_CONFIG);
+
+  // Admin banner configuration loaded from browser storage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('adminOverviewBannerConfig');
+    if (stored) {
+      try {
+        setBannerConfig(JSON.parse(stored));
+      } catch (e) {
+        // ignore invalid stored data
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleBannerUpdate = () => {
+      const stored = window.localStorage.getItem('adminOverviewBannerConfig');
+      if (stored) {
+        try {
+          setBannerConfig(JSON.parse(stored));
+        } catch (e) {
+          // ignore invalid stored data
+        }
+      }
+    };
+
+    window.addEventListener('adminOverviewBannerUpdated', handleBannerUpdate);
+    return () => window.removeEventListener('adminOverviewBannerUpdated', handleBannerUpdate);
+  }, []);
+
   // API Data State
   const [dashboardData, setDashboardData] = useState<OverviewDashboardResponse['data']>(DEFAULT_DASHBOARD_DATA);
   const [loading, setLoading] = useState<boolean>(true);
@@ -506,6 +553,13 @@ const Overview: React.FC = () => {
     if (hoursAgo < 24) return `${hoursAgo} ${hoursAgo === 1 ? 'hour' : 'hours'} ago`;
     if (daysAgo === 1) return '1 day ago';
     return `${daysAgo} days ago`;
+  };
+
+  const scrollToMetrics = () => {
+    const element = document.getElementById('overview-metrics');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   // Get action icon
@@ -832,8 +886,40 @@ const Overview: React.FC = () => {
         </Button>
       </div>
 
+      {user?.roleType === 'admin' && (
+        <div className="rounded-4xl bg-linear-to-r from-sky-500 via-cyan-500 to-emerald-500 text-white p-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.45),transparent_35%)]" />
+          <div className="relative max-w-4xl">
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight leading-tight">
+              {bannerConfig.title}
+            </h2>
+            <p className="mt-4 max-w-3xl text-sm sm:text-base text-slate-100/90">
+              {bannerConfig.subtitle}
+            </p>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={scrollToMetrics}
+                className="min-w-[180px]"
+              >
+                {bannerConfig.primaryButtonLabel}
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => navigate('/admin/settings')}
+                className="min-w-[180px] border-white text-white hover:bg-white/10"
+              >
+                {bannerConfig.secondaryButtonLabel}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards and Activity Log in Same Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div id="overview-metrics" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Row 1 - Card 1 */}
         <StatCard
           title={occupancyCard?.title || "Occupancy Rate"}

@@ -367,3 +367,32 @@ export const getTenantById = async (tenantId: number): Promise<any> => {
   }
 };
 
+export interface TenantScorePayload {
+  behavior: number;
+  punctuality: number;
+  cleanliness: number;
+  remarks?: string;
+  referrals?: number;
+  timePeriod?: string;
+}
+
+export const upsertTenantScore = async (
+  tenantId: number,
+  payload: TenantScorePayload
+): Promise<{ success: boolean; message: string; statusCode: number }> => {
+  try {
+    const response = await api.post<{ success: boolean; message: string; statusCode: number }>(
+      `/admin/tenant/${tenantId}/score`,
+      payload
+    );
+    return {
+      success: true,
+      message: response.data?.message || 'Tenant score saved successfully',
+      statusCode: response.data?.statusCode || 200,
+    };
+  } catch (error: any) {
+    console.error('Error saving tenant score:', error);
+    throw error;
+  }
+};
+

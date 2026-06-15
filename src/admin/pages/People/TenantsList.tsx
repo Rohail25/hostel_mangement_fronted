@@ -31,6 +31,9 @@ const TenantsList: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingTenantId, setEditingTenantId] = useState<number | null>(null);
+  const [tenantRows, setTenantRows] = useState<Tenant[]>(tenantsData as Tenant[]);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -41,11 +44,70 @@ const TenantsList: React.FC = () => {
     leaseEnd: '',
     rent: '',
     deposit: '',
+    status: 'Active',
   });
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      room: '',
+      bed: '',
+      leaseStart: '',
+      leaseEnd: '',
+      rent: '',
+      deposit: '',
+      status: 'Active',
+    });
+    setEditingTenantId(null);
+    setIsEditMode(false);
+  };
+
+  const handleOpenAddTenant = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const handleViewTenant = (tenant: Tenant) => {
+    window.alert(
+      `Tenant details:\nName: ${tenant.name}\nEmail: ${tenant.email}\nPhone: ${tenant.phone}\nRoom: ${tenant.room}\nBed: ${tenant.bed}\nLease: ${tenant.leaseStart} - ${tenant.leaseEnd}`
+    );
+  };
+
+  const handleEditTenant = (tenant: Tenant) => {
+    setFormData({
+      name: tenant.name,
+      email: tenant.email,
+      phone: tenant.phone,
+      room: tenant.room,
+      bed: tenant.bed,
+      leaseStart: tenant.leaseStart,
+      leaseEnd: tenant.leaseEnd,
+      rent: '',
+      deposit: '',
+      status: tenant.status,
+    });
+    setEditingTenantId(tenant.id as number);
+    setIsEditMode(true);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteTenant = (tenant: Tenant) => {
+    if (!window.confirm(`Delete ${tenant.name}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setTenantRows((prev) => prev.filter((row) => row.id !== tenant.id));
+    if (editingTenantId === tenant.id) {
+      setIsModalOpen(false);
+      resetForm();
+    }
+  };
 
   // Filter data
   const filteredData = useMemo(() => {
-    let data = tenantsData as Tenant[];
+    let data = tenantRows;
 
     // Search filter
     if (searchQuery) {
@@ -134,21 +196,21 @@ const TenantsList: React.FC = () => {
       render: (row) => (
         <div className="flex items-center gap-2">
           <button
-            onClick={() => console.log('View', row.id)}
+            onClick={() => handleViewTenant(row)}
             className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
             title="View"
           >
             <EyeIcon className="w-5 h-5" />
           </button>
           <button
-            onClick={() => console.log('Edit', row.id)}
+            onClick={() => handleEditTenant(row)}
             className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
             title="Edit"
           >
             <PencilIcon className="w-5 h-5" />
           </button>
           <button
-            onClick={() => console.log('Delete', row.id)}
+            onClick={() => handleDeleteTenant(row)}
             className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             title="Delete"
           >
@@ -187,20 +249,37 @@ const TenantsList: React.FC = () => {
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('New Tenant:', formData);
-    // Here you would typically send the data to your backend
+
+    const existingTenant =
+      isEditMode && editingTenantId !== null
+        ? tenantRows.find((tenant) => tenant.id === editingTenantId) || null
+        : null;
+
+    const updatedTenant = {
+      id:
+        existingTenant?.id ??
+        tenantRows.reduce((maxId, tenant) => Math.max(maxId, tenant.id as number), 0) + 1,
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      room: formData.room,
+      bed: formData.bed,
+      leaseStart: formData.leaseStart,
+      leaseEnd: formData.leaseEnd,
+      status: existingTenant?.status ?? formData.status || 'Active',
+      hostelName: existingTenant?.hostelName ?? 'N/A',
+    } as Tenant;
+
+    if (isEditMode && editingTenantId !== null) {
+      setTenantRows((prev) =>
+        prev.map((tenant) => (tenant.id === editingTenantId ? updatedTenant : tenant))
+      );
+    } else {
+      setTenantRows((prev) => [updatedTenant, ...prev]);
+    }
+
     setIsModalOpen(false);
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      room: '',
-      bed: '',
-      leaseStart: '',
-      leaseEnd: '',
-      rent: '',
-      deposit: '',
-    });
+    resetForm();
   };
 
   return (
@@ -217,7 +296,7 @@ const TenantsList: React.FC = () => {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleOpenAddTenant}
             className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all"
           >
             <UserPlusIcon className="w-5 h-5" />
@@ -258,8 +337,12 @@ const TenantsList: React.FC = () => {
                     <UserPlusIcon className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-white">Add New Tenant</h2>
-                    <p className="text-blue-100 text-sm">Fill in the tenant details</p>
+                    <h2 className="text-2xl font-bold text-white">
+                      {isEditMode ? 'Edit Tenant' : 'Add New Tenant'}
+                    </h2>
+                    <p className="text-blue-100 text-sm">
+                      {isEditMode ? 'Update tenant information' : 'Fill in the tenant details'}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -421,7 +504,7 @@ const TenantsList: React.FC = () => {
                     type="submit"
                     className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold rounded-lg hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all"
                   >
-                    Add Tenant
+                    {isEditMode ? 'Save Changes' : 'Add Tenant'}
                   </button>
                 </div>
               </form>

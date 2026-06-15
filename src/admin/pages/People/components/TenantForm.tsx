@@ -3,7 +3,7 @@
  * Sidebar-based form for adding/editing tenants
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Select } from '../../../components/Select';
 import { 
@@ -12,12 +12,21 @@ import {
   ExclamationTriangleIcon,
   HomeIcon,
   XMarkIcon,
-  DocumentTextIcon,
   PlusIcon
 } from '@heroicons/react/24/outline';
 import { API_BASE_URL } from '../../../../services/api.config';
 import * as tenantService from '../../../services/tenant.service';
 import { AddHostelForm } from '../../../components/AddHostelForm';
+
+interface TenantDocument {
+  field?: string;
+  url?: string;
+  filename?: string;
+  originalName?: string;
+  mimetype?: string;
+  size?: number;
+  uploadedAt?: string;
+}
 
 interface TenantFormData {
   // Personal Information
@@ -28,6 +37,7 @@ interface TenantFormData {
   email: string;
   phone: string;
   whatsappNumber: string;
+  reference: string;
   gender: string;
   genderOther: string;
   dateOfBirth: string;
@@ -35,7 +45,7 @@ interface TenantFormData {
   profilePhoto: File | null;
   attachments: FileList | null;
   previousProfilePhoto: string | null;
-  previousAttachments: any[] | null;
+  previousAttachments: TenantDocument[] | null;
   
   // Professional
   professionType: string; // student, job, business
@@ -63,14 +73,23 @@ interface TenantFormData {
   // Emergency
   emergencyContactName: string;
   emergencyContactNumber: string;
+  emergencyContactNumberCountry: string;
+  emergencyContactNumberLocal: string;
   emergencyContactWhatsapp: string;
+  emergencyContactWhatsappCountry: string;
+  emergencyContactWhatsappLocal: string;
   emergencyContactRelation: string;
   emergencyContactRelationOther: string;
   anyDisease: string;
+  diseaseDetails: string;
   bloodGroup: string;
   // Nearest Relative
   nearestRelativeContact: string;
+  nearestRelativeContactCountry: string;
+  nearestRelativeContactLocal: string;
   nearestRelativeWhatsapp: string;
+  nearestRelativeWhatsappCountry: string;
+  nearestRelativeWhatsappLocal: string;
   nearestRelativeRelation: string;
   nearestRelativeRelationOther: string;
   
@@ -85,12 +104,14 @@ interface TenantFormData {
   securityDeposit: string;
   lateFeesFine: string;
   lateFeesPercentage: string;
+  lateFeesChargeDate: string;
   rentalDocument: FileList | null;
   securityDepositFile: FileList | null;
   advancedRentReceivedFile: FileList | null;
-  previousRentalDocument: any[] | null;
-  previousSecurityDepositFile: any[] | null;
-  previousAdvancedRentReceivedFile: any[] | null;
+  otherDocuments: Array<{ documentName: string; documentFile: File | null }>;
+  previousRentalDocument: TenantDocument[] | null;
+  previousSecurityDepositFile: TenantDocument[] | null;
+  previousAdvancedRentReceivedFile: TenantDocument[] | null;
 }
 
 interface TenantFormProps {
@@ -104,6 +125,53 @@ interface TenantFormProps {
   onHostelCreated?: () => void; // Callback when new hostel is created
   isReadOnly?: boolean; // New prop for read-only mode
 }
+
+const phoneCountryOptions = [
+  { value: '+92', label: 'Pakistan (+92)' },
+  { value: '+91', label: 'India (+91)' },
+  { value: '+1', label: 'USA (+1)' },
+  { value: '+44', label: 'UK (+44)' },
+  { value: '+61', label: 'Australia (+61)' },
+  { value: '+971', label: 'UAE (+971)' },
+];
+
+const parsePhoneWithCountry = (value: string, defaultCountry = '+92') => {
+  if (!value) return { country: defaultCountry, local: '' };
+  const normalized = value.trim();
+  const match = normalized.match(/^\s*(\+\d{1,4})\s*([0-9\s-]*)$/);
+  if (match) {
+    return {
+      country: match[1],
+      local: match[2].replace(/\D/g, ''),
+    };
+  }
+
+  return {
+    country: defaultCountry,
+    local: normalized.replace(/\D/g, ''),
+  };
+};
+
+const getMaxLocalPhoneDigits = (countryCode: string) => {
+  switch (countryCode) {
+    case '+1':
+    case '+44':
+    case '+92':
+    case '+91':
+      return 10;
+    case '+61':
+      return 9;
+    case '+971':
+      return 9;
+    default:
+      return 12;
+  }
+};
+
+const formatPhoneField = (countryCode: string, localNumber: string) => {
+  if (!countryCode) return localNumber;
+  return `${countryCode} ${localNumber}`.trim();
+};
 
 type ActiveTab = 'personal' | 'professional' | 'emergency' | 'hostel';
 
@@ -125,7 +193,9 @@ const TenantForm: React.FC<TenantFormProps> = ({
   const [floorsLoading, setFloorsLoading] = useState(false);
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [bedsLoading, setBedsLoading] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<keyof TenantFormData, string>>>({});
   const [isAddHostelOpen, setIsAddHostelOpen] = useState(false);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<TenantFormData>({
     fullName: '',
@@ -133,6 +203,7 @@ const TenantForm: React.FC<TenantFormProps> = ({
     email: '',
     phone: '',
     whatsappNumber: '',
+    reference: '',
     gender: '',
     genderOther: '',
     dateOfBirth: '',
@@ -160,13 +231,22 @@ const TenantForm: React.FC<TenantFormProps> = ({
     professionDescription: '',
     emergencyContactName: '',
     emergencyContactNumber: '',
+    emergencyContactNumberCountry: '+92',
+    emergencyContactNumberLocal: '',
     emergencyContactWhatsapp: '',
+    emergencyContactWhatsappCountry: '+92',
+    emergencyContactWhatsappLocal: '',
     emergencyContactRelation: '',
     emergencyContactRelationOther: '',
-    anyDisease: '',
+    anyDisease: 'No',
+    diseaseDetails: '',
     bloodGroup: '',
     nearestRelativeContact: '',
+    nearestRelativeContactCountry: '+92',
+    nearestRelativeContactLocal: '',
     nearestRelativeWhatsapp: '',
+    nearestRelativeWhatsappCountry: '+92',
+    nearestRelativeWhatsappLocal: '',
     nearestRelativeRelation: '',
     nearestRelativeRelationOther: '',
     hostelId: '',
@@ -179,9 +259,11 @@ const TenantForm: React.FC<TenantFormProps> = ({
     securityDeposit: '',
     lateFeesFine: '',
     lateFeesPercentage: '',
+    lateFeesChargeDate: '',
     rentalDocument: null,
     securityDepositFile: null,
     advancedRentReceivedFile: null,
+    otherDocuments: [],
     previousRentalDocument: null,
     previousSecurityDepositFile: null,
     previousAdvancedRentReceivedFile: null,
@@ -192,7 +274,23 @@ const TenantForm: React.FC<TenantFormProps> = ({
     if (!isOpen) return;
     
     if (initialData && editingId) {
-      setFormData(prev => ({ ...prev, ...initialData }));
+      const parsedEmergencyNumber = parsePhoneWithCountry(initialData.emergencyContactNumber || '');
+      const parsedEmergencyWhatsapp = parsePhoneWithCountry(initialData.emergencyContactWhatsapp || '');
+      const parsedNearestRelativeContact = parsePhoneWithCountry(initialData.nearestRelativeContact || '');
+      const parsedNearestRelativeWhatsapp = parsePhoneWithCountry(initialData.nearestRelativeWhatsapp || '');
+
+      setFormData(prev => ({
+        ...prev,
+        ...initialData,
+        emergencyContactNumberCountry: parsedEmergencyNumber.country,
+        emergencyContactNumberLocal: parsedEmergencyNumber.local,
+        emergencyContactWhatsappCountry: parsedEmergencyWhatsapp.country,
+        emergencyContactWhatsappLocal: parsedEmergencyWhatsapp.local,
+        nearestRelativeContactCountry: parsedNearestRelativeContact.country,
+        nearestRelativeContactLocal: parsedNearestRelativeContact.local,
+        nearestRelativeWhatsappCountry: parsedNearestRelativeWhatsapp.country,
+        nearestRelativeWhatsappLocal: parsedNearestRelativeWhatsapp.local,
+      }));
       setActiveTab('personal');
     } else if (!editingId) {
       setFormData({
@@ -201,6 +299,7 @@ const TenantForm: React.FC<TenantFormProps> = ({
         email: '',
         phone: '',
         whatsappNumber: '',
+        reference: '',
         gender: '',
         genderOther: '',
         dateOfBirth: '',
@@ -228,13 +327,22 @@ const TenantForm: React.FC<TenantFormProps> = ({
         professionDescription: '',
         emergencyContactName: '',
         emergencyContactNumber: '',
+        emergencyContactNumberCountry: '+92',
+        emergencyContactNumberLocal: '',
         emergencyContactWhatsapp: '',
+        emergencyContactWhatsappCountry: '+92',
+        emergencyContactWhatsappLocal: '',
         emergencyContactRelation: '',
         emergencyContactRelationOther: '',
-        anyDisease: '',
+        anyDisease: 'No',
+        diseaseDetails: '',
         bloodGroup: '',
         nearestRelativeContact: '',
+        nearestRelativeContactCountry: '+92',
+        nearestRelativeContactLocal: '',
         nearestRelativeWhatsapp: '',
+        nearestRelativeWhatsappCountry: '+92',
+        nearestRelativeWhatsappLocal: '',
         nearestRelativeRelation: '',
         nearestRelativeRelationOther: '',
         hostelId: '',
@@ -247,9 +355,11 @@ const TenantForm: React.FC<TenantFormProps> = ({
         securityDeposit: '',
         lateFeesFine: '',
         lateFeesPercentage: '',
+        lateFeesChargeDate: '',
         rentalDocument: null,
         securityDepositFile: null,
         advancedRentReceivedFile: null,
+        otherDocuments: [],
         previousRentalDocument: null,
         previousSecurityDepositFile: null,
         previousAdvancedRentReceivedFile: null,
@@ -271,7 +381,7 @@ const TenantForm: React.FC<TenantFormProps> = ({
           const floors = await tenantService.getFloorsByHostel(Number(formData.hostelId));
           const floorOptions = floors.map(floor => ({
             value: String(floor.id),
-            label: floor.floorName || `Floor ${floor.floorNumber || floor.number}`,
+            label: floor.floorName || `Floor ${floor.number}`,
           }));
           setAvailableFloors(floorOptions);
         } catch (error) {
@@ -323,13 +433,17 @@ const TenantForm: React.FC<TenantFormProps> = ({
         try {
           setBedsLoading(true);
           const beds = await tenantService.getBedsByRoom(Number(formData.roomId));
-          // Filter beds by status - only show available beds
-          // Backend returns status: 'available' | 'occupied' | 'reserved'
           const unoccupiedBeds = beds
-            .filter(bed => bed.status === 'available' || (!bed.status && !bed.currentTenantId))
+            .filter((bed) => {
+              const bedStatus = String(bed.status || '').toLowerCase();
+              const hasOccupant = Boolean(bed.currentTenantId || bed.currentTenant || bed.currentUser || bed.currentUserId);
+              const isCurrentSelection = String(bed.id) === String(formData.bedId);
+
+              return isCurrentSelection || (bedStatus === 'available' && !hasOccupant);
+            })
             .map(bed => ({
               value: String(bed.id),
-              label: `Bed ${bed.bedNumber}${bed.status ? ` (${bed.status})` : ' (Available)'}`,
+              label: `Bed ${bed.bedNumber}${String(bed.status || '').toLowerCase() === 'available' ? '' : ` (${bed.status})`}`,
             }));
           setAvailableBeds(unoccupiedBeds);
         } catch (error) {
@@ -346,6 +460,32 @@ const TenantForm: React.FC<TenantFormProps> = ({
     fetchBeds();
   }, [formData.roomId]);
 
+  const validateHostelInfo = (): boolean => {
+    const validationErrors: Partial<Record<keyof TenantFormData, string>> = {};
+
+    if (!formData.hostelId) {
+      validationErrors.hostelId = 'Please select a hostel.';
+    }
+    if (!formData.floorId) {
+      validationErrors.floorId = 'Please select a floor.';
+    }
+    if (!formData.roomId) {
+      validationErrors.roomId = 'Please select a room.';
+    }
+    if (!formData.bedId) {
+      validationErrors.bedId = 'Please select an available bed.';
+    }
+    if (!formData.leaseStartDate) {
+      validationErrors.leaseStartDate = 'Lease start date is required.';
+    }
+    if (!formData.leaseEndDate) {
+      validationErrors.leaseEndDate = 'Lease end date is required.';
+    }
+
+    setErrors(validationErrors);
+    return Object.keys(validationErrors).length === 0;
+  };
+
   const handleNext = () => {
     if (activeTab === 'personal') {
       setActiveTab('professional');
@@ -358,6 +498,10 @@ const TenantForm: React.FC<TenantFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateHostelInfo()) {
+      setActiveTab('hostel');
+      return;
+    }
     await onSubmit(formData);
   };
 
@@ -374,6 +518,66 @@ const TenantForm: React.FC<TenantFormProps> = ({
       onHostelCreated();
     }
   };
+
+  const hostelSectionHasError = Boolean(
+    errors.hostelId ||
+    errors.floorId ||
+    errors.roomId ||
+    errors.bedId ||
+    errors.leaseStartDate ||
+    errors.leaseEndDate
+  );
+
+  useEffect(() => {
+    if (formData.profilePhoto) {
+      const previewUrl = URL.createObjectURL(formData.profilePhoto);
+      setProfilePhotoPreview(previewUrl);
+      return () => {
+        URL.revokeObjectURL(previewUrl);
+      };
+    }
+    setProfilePhotoPreview(null);
+    return undefined;
+  }, [formData.profilePhoto]);
+
+  const emergencyRelationOtherRef = useRef<HTMLInputElement>(null);
+  const nearestRelativeRelationOtherRef = useRef<HTMLInputElement>(null);
+  const diseaseDetailsRef = useRef<HTMLTextAreaElement>(null);
+
+  const updatePhoneField = (
+    countryField: keyof TenantFormData,
+    localField: keyof TenantFormData,
+    combinedField: keyof TenantFormData,
+    nextCountry: string,
+    nextLocal: string
+  ) => {
+    const maxDigits = getMaxLocalPhoneDigits(nextCountry);
+    const digits = nextLocal.replace(/\D/g, '').slice(0, maxDigits);
+    setFormData(prev => ({
+      ...prev,
+      [countryField]: nextCountry,
+      [localField]: digits,
+      [combinedField]: formatPhoneField(nextCountry, digits),
+    } as unknown as TenantFormData));
+  };
+
+  useEffect(() => {
+    if (activeTab === 'emergency' && formData.emergencyContactRelation === 'other' && emergencyRelationOtherRef.current) {
+      emergencyRelationOtherRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [formData.emergencyContactRelation, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'emergency' && formData.nearestRelativeRelation === 'other' && nearestRelativeRelationOtherRef.current) {
+      nearestRelativeRelationOtherRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [formData.nearestRelativeRelation, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'emergency' && formData.anyDisease === 'Yes' && diseaseDetailsRef.current) {
+      diseaseDetailsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [formData.anyDisease, activeTab]);
 
   if (!isOpen) return null;
 
@@ -480,6 +684,45 @@ const TenantForm: React.FC<TenantFormProps> = ({
                 {/* Tab Content - Personal */}
                 {activeTab === 'personal' && (
                   <div className="space-y-6">
+                    <div className="flex flex-col items-center gap-4 py-4 border-b border-slate-200">
+                      <div className="relative w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100">
+                        {formData.profilePhoto || formData.previousProfilePhoto ? (
+                          <img
+                            src={
+                              formData.profilePhoto
+                                ? profilePhotoPreview || undefined
+                                : formData.previousProfilePhoto
+                                  ? `${API_BASE_URL.replace('/api', '')}${formData.previousProfilePhoto}`
+                                  : undefined
+                            }
+                            alt="Profile preview"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-slate-500 text-sm font-medium">
+                            No Photo
+                          </div>
+                        )}
+                      </div>
+                      {!isReadOnly && (
+                        <label className="inline-flex cursor-pointer items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+                          <span>Choose Profile Photo</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              setFormData({ ...formData, profilePhoto: file });
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                      {formData.profilePhoto && (
+                        <p className="text-sm text-slate-600">Selected: {formData.profilePhoto.name}</p>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -552,6 +795,19 @@ const TenantForm: React.FC<TenantFormProps> = ({
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Reference / Referred By
+                        </label>
+                        <input
+                          type="text"
+                          disabled={isReadOnly}
+                          value={formData.reference}
+                          onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                          placeholder="Source of referral"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
                           Gender <span className="text-red-500">*</span>
                         </label>
                         <Select
@@ -604,41 +860,6 @@ const TenantForm: React.FC<TenantFormProps> = ({
                           placeholder="1234512345671"
                         />
                         <p className="text-xs text-gray-500 mt-1">Enter 13 digits only</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Profile Photo
-                        </label>
-                        {!isReadOnly && (
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] || null;
-                              setFormData({ ...formData, profilePhoto: file });
-                            }}
-                            className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        )}
-                        {formData.profilePhoto && (
-                          <p className="text-sm text-gray-600 mt-1">
-                            Selected: {formData.profilePhoto.name}
-                          </p>
-                        )}
-                        {(editingId || isReadOnly) && formData.previousProfilePhoto && !formData.profilePhoto && (
-                          <div className="mt-3">
-                            <p className="text-sm text-gray-600 mb-2">Current Profile Photo:</p>
-                            <img
-                              src={`${API_BASE_URL.replace('/api', '')}${formData.previousProfilePhoto}`}
-                              alt="Current profile"
-                              className="w-24 h-24 rounded-full object-cover border-2 border-gray-300"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                              }}
-                            />
-                          </div>
-                        )}
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -962,27 +1183,79 @@ const TenantForm: React.FC<TenantFormProps> = ({
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                           Emergency Contact Number
                         </label>
-                        <input
-                          type="tel"
-                          disabled={isReadOnly}
-                          value={formData.emergencyContactNumber}
-                          onChange={(e) => setFormData({ ...formData, emergencyContactNumber: e.target.value })}
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="+1 234 567 8900"
-                        />
+                        <div className="flex gap-2 items-stretch">
+                          <select
+                            disabled={isReadOnly}
+                            value={formData.emergencyContactNumberCountry}
+                            onChange={(e) => updatePhoneField(
+                              'emergencyContactNumberCountry',
+                              'emergencyContactNumberLocal',
+                              'emergencyContactNumber',
+                              e.target.value,
+                              formData.emergencyContactNumberLocal,
+                            )}
+                            className="w-40 px-3 py-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                          >
+                            {phoneCountryOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="tel"
+                            disabled={isReadOnly}
+                            value={formData.emergencyContactNumberLocal}
+                            onChange={(e) => updatePhoneField(
+                              'emergencyContactNumberCountry',
+                              'emergencyContactNumberLocal',
+                              'emergencyContactNumber',
+                              formData.emergencyContactNumberCountry,
+                              e.target.value,
+                            )}
+                            className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                            placeholder="3331234567"
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                           Emergency Contact WhatsApp Number
                         </label>
-                        <input
-                          type="tel"
-                          disabled={isReadOnly}
-                          value={formData.emergencyContactWhatsapp}
-                          onChange={(e) => setFormData({ ...formData, emergencyContactWhatsapp: e.target.value })}
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="+1 234 567 8900"
-                        />
+                        <div className="flex gap-2 items-stretch">
+                          <select
+                            disabled={isReadOnly}
+                            value={formData.emergencyContactWhatsappCountry}
+                            onChange={(e) => updatePhoneField(
+                              'emergencyContactWhatsappCountry',
+                              'emergencyContactWhatsappLocal',
+                              'emergencyContactWhatsapp',
+                              e.target.value,
+                              formData.emergencyContactWhatsappLocal,
+                            )}
+                            className="w-40 px-3 py-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                          >
+                            {phoneCountryOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="tel"
+                            disabled={isReadOnly}
+                            value={formData.emergencyContactWhatsappLocal}
+                            onChange={(e) => updatePhoneField(
+                              'emergencyContactWhatsappCountry',
+                              'emergencyContactWhatsappLocal',
+                              'emergencyContactWhatsapp',
+                              formData.emergencyContactWhatsappCountry,
+                              e.target.value,
+                            )}
+                            className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                            placeholder="3331234567"
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1007,6 +1280,7 @@ const TenantForm: React.FC<TenantFormProps> = ({
                         />
                         {formData.emergencyContactRelation === 'other' && (
                           <input
+                            ref={emergencyRelationOtherRef}
                             type="text"
                             disabled={isReadOnly}
                             value={formData.emergencyContactRelationOther}
@@ -1020,14 +1294,34 @@ const TenantForm: React.FC<TenantFormProps> = ({
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                           Any Disease
                         </label>
-                        <input
-                          type="text"
-                          disabled={isReadOnly}
-                          value={formData.anyDisease}
-                          onChange={(e) => setFormData({ ...formData, anyDisease: e.target.value })}
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="Enter any disease"
-                        />
+                        <div className="flex gap-2">
+                          {['Yes', 'No'].map((option) => (
+                            <button
+                              key={option}
+                              type="button"
+                              disabled={isReadOnly}
+                              onClick={() => setFormData(prev => ({
+                                ...prev,
+                                anyDisease: option,
+                                diseaseDetails: option === 'No' ? '' : prev.diseaseDetails,
+                              }))}
+                              className={`flex-1 px-4 py-2 rounded-xl border text-sm font-medium transition ${formData.anyDisease === option ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'}`}
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                        {formData.anyDisease === 'Yes' && (
+                          <textarea
+                            ref={diseaseDetailsRef}
+                            disabled={isReadOnly}
+                            value={formData.diseaseDetails}
+                            onChange={(e) => setFormData({ ...formData, diseaseDetails: e.target.value })}
+                            rows={3}
+                            className="w-full mt-3 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                            placeholder="Please specify the disease details"
+                          />
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1046,33 +1340,85 @@ const TenantForm: React.FC<TenantFormProps> = ({
 
                     {/* Nearest Relative Section */}
                     <div className="mt-8 pt-6 border-t border-slate-300">
-                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Nearest Relative under 80 KM</h4>
+                      <h4 className="text-lg font-semibold text-slate-900 mb-4">Related Relative under 80 KM</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-2">
                             Contact Number
                           </label>
-                          <input
-                            type="tel"
-                            disabled={isReadOnly}
-                            value={formData.nearestRelativeContact}
-                            onChange={(e) => setFormData({ ...formData, nearestRelativeContact: e.target.value })}
-                            className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                            placeholder="+1 234 567 8900"
-                          />
+                          <div className="flex gap-2 items-stretch">
+                            <select
+                              disabled={isReadOnly}
+                              value={formData.nearestRelativeContactCountry}
+                              onChange={(e) => updatePhoneField(
+                                'nearestRelativeContactCountry',
+                                'nearestRelativeContactLocal',
+                                'nearestRelativeContact',
+                                e.target.value,
+                                formData.nearestRelativeContactLocal,
+                              )}
+                              className="w-40 px-3 py-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                            >
+                              {phoneCountryOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="tel"
+                              disabled={isReadOnly}
+                              value={formData.nearestRelativeContactLocal}
+                              onChange={(e) => updatePhoneField(
+                                'nearestRelativeContactCountry',
+                                'nearestRelativeContactLocal',
+                                'nearestRelativeContact',
+                                formData.nearestRelativeContactCountry,
+                                e.target.value,
+                              )}
+                              className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              placeholder="3331234567"
+                            />
+                          </div>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-2">
                             WhatsApp Number
                           </label>
-                          <input
-                            type="tel"
-                            disabled={isReadOnly}
-                            value={formData.nearestRelativeWhatsapp}
-                            onChange={(e) => setFormData({ ...formData, nearestRelativeWhatsapp: e.target.value })}
-                            className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                            placeholder="+1 234 567 8900"
-                          />
+                          <div className="flex gap-2 items-stretch">
+                            <select
+                              disabled={isReadOnly}
+                              value={formData.nearestRelativeWhatsappCountry}
+                              onChange={(e) => updatePhoneField(
+                                'nearestRelativeWhatsappCountry',
+                                'nearestRelativeWhatsappLocal',
+                                'nearestRelativeWhatsapp',
+                                e.target.value,
+                                formData.nearestRelativeWhatsappLocal,
+                              )}
+                              className="w-40 px-3 py-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                            >
+                              {phoneCountryOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="tel"
+                              disabled={isReadOnly}
+                              value={formData.nearestRelativeWhatsappLocal}
+                              onChange={(e) => updatePhoneField(
+                                'nearestRelativeWhatsappCountry',
+                                'nearestRelativeWhatsappLocal',
+                                'nearestRelativeWhatsapp',
+                                formData.nearestRelativeWhatsappCountry,
+                                e.target.value,
+                              )}
+                              className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              placeholder="3331234567"
+                            />
+                          </div>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1097,6 +1443,7 @@ const TenantForm: React.FC<TenantFormProps> = ({
                           />
                           {formData.nearestRelativeRelation === 'other' && (
                             <input
+                              ref={nearestRelativeRelationOtherRef}
                               type="text"
                               disabled={isReadOnly}
                               value={formData.nearestRelativeRelationOther}
@@ -1133,7 +1480,6 @@ const TenantForm: React.FC<TenantFormProps> = ({
                       </div>
                       {hostelOptions.length > 0 ? (
                         <Select
-                          disabled={isReadOnly}
                           value={formData.hostelId}
                           onChange={(value) => {
                             setFormData({
@@ -1143,10 +1489,18 @@ const TenantForm: React.FC<TenantFormProps> = ({
                               roomId: '',
                               bedId: '',
                             });
+                            setErrors(prev => ({
+                              ...prev,
+                              hostelId: undefined,
+                              floorId: undefined,
+                              roomId: undefined,
+                              bedId: undefined,
+                            }));
                           }}
                           options={hostelOptions.filter(opt => opt.value !== '')}
                           placeholder={hostelsLoading ? "Loading hostels..." : "Select Hostel"}
                           disabled={hostelsLoading || isReadOnly}
+                          error={errors.hostelId}
                         />
                       ) : (
                         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -1160,13 +1514,12 @@ const TenantForm: React.FC<TenantFormProps> = ({
                     {formData.hostelId && (
                       <>
                         {/* Room Allocation */}
-                        <div className="space-y-6">
+                        <div className={`space-y-6 p-4 rounded-2xl ${hostelSectionHasError ? 'border border-red-300 bg-red-50' : 'border border-slate-200 bg-white/80'}`}>
                           <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">
                               Floor
                             </label>
                             <Select
-                              disabled={isReadOnly}
                               value={formData.floorId}
                               onChange={(value) => {
                                 setFormData({
@@ -1175,10 +1528,17 @@ const TenantForm: React.FC<TenantFormProps> = ({
                                   roomId: '',
                                   bedId: '',
                                 });
+                                setErrors(prev => ({
+                                  ...prev,
+                                  floorId: undefined,
+                                  roomId: undefined,
+                                  bedId: undefined,
+                                }));
                               }}
                               options={availableFloors}
                               placeholder={floorsLoading ? "Loading floors..." : "Select Floor"}
                               disabled={floorsLoading || isReadOnly}
+                              error={errors.floorId}
                             />
                           </div>
                           {formData.floorId && (
@@ -1187,7 +1547,6 @@ const TenantForm: React.FC<TenantFormProps> = ({
                                 Room
                               </label>
                               <Select
-                                disabled={isReadOnly}
                                 value={formData.roomId}
                                 onChange={(value) => {
                                   setFormData({
@@ -1195,10 +1554,16 @@ const TenantForm: React.FC<TenantFormProps> = ({
                                     roomId: value,
                                     bedId: '',
                                   });
+                                  setErrors(prev => ({
+                                    ...prev,
+                                    roomId: undefined,
+                                    bedId: undefined,
+                                  }));
                                 }}
                                 options={availableRooms}
                                 placeholder={roomsLoading ? "Loading rooms..." : "Select Room"}
                                 disabled={roomsLoading || isReadOnly}
+                                error={errors.roomId}
                               />
                             </div>
                           )}
@@ -1208,17 +1573,21 @@ const TenantForm: React.FC<TenantFormProps> = ({
                                 Bed
                               </label>
                               <Select
-                                disabled={isReadOnly}
                                 value={formData.bedId}
                                 onChange={(value) => {
                                   setFormData({
                                     ...formData,
                                     bedId: value,
                                   });
+                                  setErrors(prev => ({
+                                    ...prev,
+                                    bedId: undefined,
+                                  }));
                                 }}
                                 options={availableBeds}
                                 placeholder={bedsLoading ? "Loading beds..." : "Select Available Bed"}
                                 disabled={bedsLoading || isReadOnly}
+                                error={errors.bedId}
                               />
                               {!bedsLoading && !isReadOnly && availableBeds.length === 0 && (
                                 <p className="text-sm text-red-600 mt-2">No available beds in this room.</p>
@@ -1237,9 +1606,13 @@ const TenantForm: React.FC<TenantFormProps> = ({
                               type="date"
                               disabled={isReadOnly}
                               value={formData.leaseStartDate}
-                              onChange={(e) => setFormData({ ...formData, leaseStartDate: e.target.value })}
-                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              onChange={(e) => {
+                                setFormData({ ...formData, leaseStartDate: e.target.value });
+                                setErrors(prev => ({ ...prev, leaseStartDate: undefined }));
+                              }}
+                              className={`w-full px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 disabled:bg-slate-50 disabled:text-slate-500 ${errors.leaseStartDate ? 'border border-red-500 focus:ring-red-400' : 'border border-slate-300 focus:ring-blue-500'}`}
                             />
+                            {errors.leaseStartDate && <p className="mt-1 text-sm text-red-600">{errors.leaseStartDate}</p>}
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1249,9 +1622,13 @@ const TenantForm: React.FC<TenantFormProps> = ({
                               type="date"
                               disabled={isReadOnly}
                               value={formData.leaseEndDate}
-                              onChange={(e) => setFormData({ ...formData, leaseEndDate: e.target.value })}
-                              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              onChange={(e) => {
+                                setFormData({ ...formData, leaseEndDate: e.target.value });
+                                setErrors(prev => ({ ...prev, leaseEndDate: undefined }));
+                              }}
+                              className={`w-full px-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 disabled:bg-slate-50 disabled:text-slate-500 ${errors.leaseEndDate ? 'border border-red-500 focus:ring-red-400' : 'border border-slate-300 focus:ring-blue-500'}`}
                             />
+                            {errors.leaseEndDate && <p className="mt-1 text-sm text-red-600">{errors.leaseEndDate}</p>}
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -1294,17 +1671,50 @@ const TenantForm: React.FC<TenantFormProps> = ({
                               ]}
                             />
                             {formData.lateFeesFine === 'Yes' && (
-                              <input
-                                type="number"
-                                disabled={isReadOnly}
-                                value={formData.lateFeesPercentage}
-                                onChange={(e) => setFormData({ ...formData, lateFeesPercentage: e.target.value })}
-                                className="w-full mt-2 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                                placeholder="Enter percentage"
-                                step="0.01"
-                                min="0"
-                                max="100"
-                              />
+                              < div className="mt-4 flex flex-col gap-4 p-4 bg-slate-50 rounded-md border border-slate-200" >
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    Percentage Late Fees (% of monthly rent)
+                                  </label>
+                                <input
+                                  type="number"
+                                  disabled={isReadOnly}
+                                  value={formData.lateFeesPercentage}
+                                  onChange={(e) => setFormData({ ...formData, lateFeesPercentage: e.target.value })}
+                                  className="w-full mt-2 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                                  placeholder="Enter percentage"
+                                  step="0.01"
+                                  min="0"
+                                  max="100"
+                                />
+                                <div className="mt-4">
+                                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Late Fee Charge Start Date
+                                  </label>
+                                  <input
+                                    type="date"
+                                    disabled={isReadOnly}
+                                    value={formData.lateFeesChargeDate}
+                                    onChange={(e) => setFormData({ ...formData, lateFeesChargeDate: e.target.value })}
+                                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                                  />
+                                </div>
+                                {formData.monthlyRent && formData.lateFeesPercentage && !Number.isNaN(Number(formData.monthlyRent)) && !Number.isNaN(Number(formData.lateFeesPercentage)) && (
+                                  <div className="mt-3 p-3 bg-slate-50 rounded-md border border-slate-200 text-sm text-slate-700">
+                                    {(() => {
+                                      const rent = Number(formData.monthlyRent);
+                                      const percent = Number(formData.lateFeesPercentage);
+                                      const feeAmount = rent * (percent / 100);
+                                      const totalRent = rent + feeAmount;
+                                      return (
+                                        <>
+                                          Late fee amount: ₹{feeAmount.toFixed(2)}<br />
+                                          Total rent including late fee: ₹{totalRent.toFixed(2)}
+                                        </>
+                                      );
+                                    })()}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1372,6 +1782,93 @@ const TenantForm: React.FC<TenantFormProps> = ({
                               <p className="text-sm text-gray-600 mt-1">
                                 Selected: {formData.advancedRentReceivedFile.length} file(s)
                               </p>
+                            )}
+                          </div>
+                          <div className="border-t border-slate-200 pt-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <p className="text-sm font-medium text-slate-700">Other Documents (if any)</p>
+                                <p className="text-sm text-slate-500">Add a document name and upload the matching file.</p>
+                              </div>
+                              {!isReadOnly && (
+                                <button
+                                  type="button"
+                                  onClick={() => setFormData({
+                                    ...formData,
+                                    otherDocuments: [...formData.otherDocuments, { documentName: '', documentFile: null }],
+                                  })}
+                                  className="inline-flex items-center gap-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                                >
+                                  + Add Document
+                                </button>
+                              )}
+                            </div>
+                            {formData.otherDocuments.length > 0 && (
+                              <div className="space-y-4">
+                                {formData.otherDocuments.map((item, index) => (
+                                  <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                    <div className="md:col-span-1">
+                                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Document Name
+                                      </label>
+                                      <input
+                                        type="text"
+                                        disabled={isReadOnly}
+                                        value={item.documentName}
+                                        onChange={(e) => {
+                                          const updated = [...formData.otherDocuments];
+                                          updated[index] = {
+                                            ...updated[index],
+                                            documentName: e.target.value,
+                                          };
+                                          setFormData({ ...formData, otherDocuments: updated });
+                                        }}
+                                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                                        placeholder="e.g. Agreement Copy"
+                                      />
+                                    </div>
+                                    <div className="md:col-span-1">
+                                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Upload Document
+                                      </label>
+                                      {!isReadOnly && (
+                                        <input
+                                          type="file"
+                                          accept=".pdf,.doc,.docx,image/*"
+                                          onChange={(e) => {
+                                            const files = e.target.files;
+                                            const updated = [...formData.otherDocuments];
+                                            updated[index] = {
+                                              ...updated[index],
+                                              documentFile: files && files[0] ? files[0] : null,
+                                            };
+                                            setFormData({ ...formData, otherDocuments: updated });
+                                          }}
+                                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        />
+                                      )}
+                                      {item.documentFile && (
+                                        <p className="text-sm text-gray-600 mt-1">Selected: {item.documentFile.name}</p>
+                                      )}
+                                    </div>
+                                    {!isReadOnly && (
+                                      <div className="md:col-span-1 flex items-center justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const updated = [...formData.otherDocuments];
+                                            updated.splice(index, 1);
+                                            setFormData({ ...formData, otherDocuments: updated });
+                                          }}
+                                          className="inline-flex items-center justify-center h-10 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </div>
                         </div>

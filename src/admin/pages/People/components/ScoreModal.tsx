@@ -12,6 +12,8 @@ interface ScoreFormData {
   behavior: number;
   punctuality: number;
   cleanliness: number;
+  referrals: number;
+  timePeriod: string;
   remarks: string;
 }
 
@@ -148,6 +150,32 @@ const ScoreModal: React.FC<ScoreModalProps> = ({
             rows={4}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2176FF] focus:border-transparent"
             placeholder="Add any additional notes or comments..."
+          />
+        </div>
+
+        {/* Referrals */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Referrals</label>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={scoreForm.referrals}
+            onChange={(e) => onScoreFormChange({ referrals: Number(e.target.value) })}
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2176FF] focus:border-transparent"
+            placeholder="Number of referrals"
+          />
+        </div>
+
+        {/* Time Period */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Time Period</label>
+          <input
+            type="text"
+            value={scoreForm.timePeriod}
+            onChange={(e) => onScoreFormChange({ timePeriod: e.target.value })}
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2176FF] focus:border-transparent"
+            placeholder="e.g. Jan 2025 - Mar 2025"
           />
         </div>
 

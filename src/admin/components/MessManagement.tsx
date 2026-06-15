@@ -5,9 +5,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PlusIcon, PencilIcon, TrashIcon, CalendarIcon, CurrencyDollarIcon, CubeIcon, XMarkIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PencilIcon, TrashIcon, CalendarIcon, CurrencyDollarIcon, CubeIcon, XMarkIcon, SunIcon, MoonIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Button } from './Button';
-import { Modal } from './Modal';
 import { Toast } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Tabs } from './Tabs';
@@ -39,25 +39,79 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
     type: ToastType;
     message: string;
   }>({ open: false, type: 'success', message: '' });
+  const analysisSectionRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Filter state
+  const [filterType, setFilterType] = useState<'week' | 'month' | 'year' | 'custom'>('month');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [showCustomFilter, setShowCustomFilter] = useState(false);
 
   // Days of the week
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  // Helper function to get date for selected day (this week)
-  const getDateForDay = (dayName: string): string => {
+  // Resolve an entry date safely. Some APIs return createdAt but may omit date.
+  const getEntryDate = useCallback((entry: MessEntry): Date | null => {
+    const directDate = entry.date ? new Date(entry.date) : null;
+    if (directDate && !Number.isNaN(directDate.getTime())) {
+      return directDate;
+    }
+
+    const createdDate = entry.createdAt ? new Date(entry.createdAt) : null;
+    if (createdDate && !Number.isNaN(createdDate.getTime())) {
+      return createdDate;
+    }
+
+    return null;
+  }, []);
+
+  // Get date range based on filter type
+  const getDateRange = useCallback(() => {
     const today = new Date();
-    const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const dayIndex = daysOfWeek.indexOf(dayName);
-    
-    // Convert to Monday-based week (0 = Monday, 6 = Sunday)
-    const mondayBasedCurrentDay = currentDay === 0 ? 6 : currentDay - 1;
-    const daysToAdd = dayIndex - mondayBasedCurrentDay;
-    
-    const targetDate = new Date(today);
-    targetDate.setDate(today.getDate() + daysToAdd);
-    
-    return targetDate.toISOString().split('T')[0];
-  };
+    let start = new Date();
+    let end = new Date();
+
+    switch (filterType) {
+      case 'week': {
+        const dayIndex = today.getDay();
+        const mondayOffset = dayIndex === 0 ? 6 : dayIndex - 1;
+        start.setDate(today.getDate() - mondayOffset);
+        end.setDate(start.getDate() + 6);
+        break;
+      }
+      case 'month': {
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        break;
+      }
+      case 'year': {
+        start = new Date(today.getFullYear(), 0, 1);
+        end = new Date(today.getFullYear(), 11, 31);
+        break;
+      }
+      case 'custom': {
+        if (customStartDate) start = new Date(customStartDate);
+        if (customEndDate) end = new Date(customEndDate);
+        break;
+      }
+    }
+
+    // Include full boundary days so timestamped entries are not excluded.
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+
+    return { start, end };
+  }, [filterType, customStartDate, customEndDate]);
+
+  // Filter mess entries based on date range
+  const filteredEntries = useMemo(() => {
+    const { start, end } = getDateRange();
+    return messEntries.filter(entry => {
+      const entryDate = getEntryDate(entry);
+      if (!entryDate) return false;
+      return entryDate >= start && entryDate <= end;
+    });
+  }, [messEntries, getDateRange, getEntryDate]);
 
   // Get current day name
   const getCurrentDayName = (): string => {
@@ -71,9 +125,9 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
   const [selectedDay, setSelectedDay] = useState<string>(getCurrentDayName());
   const [formData, setFormData] = useState<MessFormData>({
     day: getCurrentDayName(),
-    breakfast: { items: [{ id: `breakfast-${Date.now()}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
-    lunch: { items: [{ id: `lunch-${Date.now() + 1}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
-    dinner: { items: [{ id: `dinner-${Date.now() + 2}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
+    breakfast: { items: [{ id: `breakfast-${Date.now()}`, name: '', quantity: '', unit: '', cost: '', total: '', ingredients: '' }] },
+    lunch: { items: [{ id: `lunch-${Date.now() + 1}`, name: '', quantity: '', unit: '', cost: '', total: '', ingredients: '' }] },
+    dinner: { items: [{ id: `dinner-${Date.now() + 2}`, name: '', quantity: '', unit: '', cost: '', total: '', ingredients: '' }] },
     price: '',
   });
 
@@ -82,11 +136,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
     setFormData(prev => ({ ...prev, day: selectedDay }));
   }, [selectedDay]);
 
-  useEffect(() => {
-    loadMessEntries();
-  }, [hostelId]);
-
-  const loadMessEntries = async () => {
+  const loadMessEntries = useCallback(async () => {
     try {
       setIsLoading(true);
       const entries = await messApiService.getMessEntriesByHostelAPI(hostelId);
@@ -104,7 +154,11 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [hostelId]);
+
+  useEffect(() => {
+    loadMessEntries();
+  }, [loadMessEntries]);
 
   const handleAddItem = useCallback((mealType: MealType) => {
     setFormData((prev) => ({
@@ -129,18 +183,51 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
   const handleItemChange = useCallback((
     mealType: MealType,
     index: number,
-    field: 'name' | 'quantity' | 'unit' | 'cost' | 'ingredients',
+    field: 'name' | 'quantity' | 'unit' | 'cost' | 'ingredients' | 'total',
     value: string
   ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [mealType]: {
-        ...prev[mealType],
-        items: prev[mealType].items.map((item, i) =>
-          i === index ? { ...item, [field]: value } : item
-        ),
-      },
-    }));
+    setFormData((prev) => {
+      const items = prev[mealType].items.map((item, i) => {
+        if (i !== index) return item;
+
+        const updated = { ...item } as any;
+
+        if (field === 'quantity') {
+          updated.quantity = value;
+          const qty = parseFloat(String(value)) || 0;
+          const cost = parseFloat(String(updated.cost)) || 0;
+          updated.total = (qty * cost).toFixed(2);
+        } else if (field === 'cost') {
+          updated.cost = value;
+          const qty = parseFloat(String(updated.quantity)) || 0;
+          const cost = parseFloat(String(value)) || 0;
+          updated.total = (qty * cost).toFixed(2);
+        } else if (field === 'total') {
+          updated.total = value;
+          const qty = parseFloat(String(updated.quantity)) || 0;
+          const totalNum = parseFloat(String(value)) || 0;
+          if (qty > 0) {
+            const newCost = totalNum / qty;
+            updated.cost = newCost ? newCost.toFixed(2) : '';
+          }
+        } else if (field === 'unit') {
+          updated.unit = value;
+        } else {
+          // name or ingredients
+          (updated as any)[field] = value;
+        }
+
+        return updated;
+      });
+
+      return {
+        ...prev,
+        [mealType]: {
+          ...prev[mealType],
+          items,
+        },
+      };
+    });
   }, []);
 
   const handleNotesChange = useCallback((mealType: MealType, notes: string) => {
@@ -157,7 +244,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
   const breakfastCallbacks = React.useMemo(() => ({
     onAddItem: () => handleAddItem('breakfast'),
     onRemoveItem: (index: number) => handleRemoveItem('breakfast', index),
-    onItemChange: (index: number, field: 'name' | 'quantity' | 'unit', value: string) => 
+    onItemChange: (index: number, field: 'name' | 'quantity' | 'unit' | 'cost' | 'ingredients' | 'total', value: string) => 
       handleItemChange('breakfast', index, field, value),
     onNotesChange: (notes: string) => handleNotesChange('breakfast', notes),
   }), [handleAddItem, handleRemoveItem, handleItemChange, handleNotesChange]);
@@ -165,7 +252,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
   const lunchCallbacks = React.useMemo(() => ({
     onAddItem: () => handleAddItem('lunch'),
     onRemoveItem: (index: number) => handleRemoveItem('lunch', index),
-    onItemChange: (index: number, field: 'name' | 'quantity' | 'unit', value: string) => 
+    onItemChange: (index: number, field: 'name' | 'quantity' | 'unit' | 'cost' | 'ingredients' | 'total', value: string) => 
       handleItemChange('lunch', index, field, value),
     onNotesChange: (notes: string) => handleNotesChange('lunch', notes),
   }), [handleAddItem, handleRemoveItem, handleItemChange, handleNotesChange]);
@@ -173,7 +260,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
   const dinnerCallbacks = React.useMemo(() => ({
     onAddItem: () => handleAddItem('dinner'),
     onRemoveItem: (index: number) => handleRemoveItem('dinner', index),
-    onItemChange: (index: number, field: 'name' | 'quantity' | 'unit', value: string) => 
+    onItemChange: (index: number, field: 'name' | 'quantity' | 'unit' | 'cost' | 'ingredients' | 'total', value: string) => 
       handleItemChange('dinner', index, field, value),
     onNotesChange: (notes: string) => handleNotesChange('dinner', notes),
   }), [handleAddItem, handleRemoveItem, handleItemChange, handleNotesChange]);
@@ -204,31 +291,42 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
     try {
       setIsLoading(true);
       // Filter out empty items before submitting
+      const mapAndClean = (items: Array<{ name: string; quantity: string; unit?: string; cost?: string; total?: string; ingredients?: string }>) =>
+        items
+          .filter((item) => item.name.trim() && item.quantity.trim())
+          .map((item) => {
+            const qty = parseFloat(String(item.quantity)) || 0;
+            const cost = parseFloat(String(item.cost)) || 0;
+            const total = parseFloat(String(item.total)) || qty * cost || 0;
+            return {
+              name: item.name,
+              quantity: String(item.quantity),
+              unit: item.unit || '',
+              cost: String(cost), // Convert to string for form data
+              total: String(total), // Convert to string for form data
+              ingredients: item.ingredients || '',
+            };
+          });
+
       const cleanedData: MessFormData = {
         day: formData.day,
         breakfast: {
-          items: formData.breakfast.items.filter(
-            (item) => item.name.trim() && item.quantity.trim()
-          ),
+          items: mapAndClean(formData.breakfast.items),
           notes: formData.breakfast.notes,
         },
         lunch: {
-          items: formData.lunch.items.filter(
-            (item) => item.name.trim() && item.quantity.trim()
-          ),
+          items: mapAndClean(formData.lunch.items),
           notes: formData.lunch.notes,
         },
         dinner: {
-          items: formData.dinner.items.filter(
-            (item) => item.name.trim() && item.quantity.trim()
-          ),
+          items: mapAndClean(formData.dinner.items),
           notes: formData.dinner.notes,
         },
         price: formData.price,
       };
 
       if (editingEntry) {
-        await messApiService.updateMessEntryAPI(editingEntry.id, cleanedData);
+        await messApiService.updateMessEntryAPI(typeof editingEntry.id === 'string' ? parseInt(editingEntry.id, 10) : editingEntry.id, cleanedData);
         setToast({
           open: true,
           type: 'success',
@@ -260,6 +358,12 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
   };
 
   const handleEdit = (entry: MessEntry) => {
+    // Helper to extract numeric value from quantity string
+    const extractNumericQuantity = (quantity: string): number => {
+      const numMatch = String(quantity).match(/(\d+\.?\d*)/);
+      return numMatch ? parseFloat(numMatch[0]) : 0;
+    };
+
     setEditingEntry(entry);
     setSelectedDay(entry.day);
     setFormData({
@@ -273,6 +377,11 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 quantity: item.quantity,
                 unit: item.unit || '',
                 cost: item.cost ? String(item.cost) : '',
+                total: item.total ? String(item.total) : (() => {
+                  const qty = extractNumericQuantity(item.quantity);
+                  const cost = item.cost ? parseFloat(String(item.cost)) : 0;
+                  return (qty * cost).toFixed(2);
+                })(),
                 ingredients: item.ingredients ? (Array.isArray(item.ingredients) ? item.ingredients.join(', ') : item.ingredients) : '',
               }))
             : [{ id: `breakfast-${Date.now()}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }],
@@ -287,6 +396,11 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 quantity: item.quantity,
                 unit: item.unit || '',
                 cost: item.cost ? String(item.cost) : '',
+                total: item.total ? String(item.total) : (() => {
+                  const qty = extractNumericQuantity(item.quantity);
+                  const cost = item.cost ? parseFloat(String(item.cost)) : 0;
+                  return (qty * cost).toFixed(2);
+                })(),
                 ingredients: item.ingredients ? (Array.isArray(item.ingredients) ? item.ingredients.join(', ') : item.ingredients) : '',
               }))
             : [{ id: `lunch-${Date.now()}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }],
@@ -301,6 +415,11 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 quantity: item.quantity,
                 unit: item.unit || '',
                 cost: item.cost ? String(item.cost) : '',
+                total: item.total ? String(item.total) : (() => {
+                  const qty = extractNumericQuantity(item.quantity);
+                  const cost = item.cost ? parseFloat(String(item.cost)) : 0;
+                  return (qty * cost).toFixed(2);
+                })(),
                 ingredients: item.ingredients ? (Array.isArray(item.ingredients) ? item.ingredients.join(', ') : item.ingredients) : '',
               }))
             : [{ id: `dinner-${Date.now()}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }],
@@ -316,7 +435,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
 
     try {
       setIsLoading(true);
-      await messApiService.deleteMessEntryAPI(deleteConfirm.entry.id);
+      await messApiService.deleteMessEntryAPI(typeof deleteConfirm.entry.id === 'string' ? parseInt(deleteConfirm.entry.id, 10) : deleteConfirm.entry.id);
       setToast({
         open: true,
         type: 'success',
@@ -340,68 +459,113 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
     setSelectedDay('Monday');
     setFormData({
       day: 'Monday',
-      breakfast: { items: [{ id: `breakfast-${now}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
-      lunch: { items: [{ id: `lunch-${now + 1}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
-      dinner: { items: [{ id: `dinner-${now + 2}`, name: '', quantity: '', unit: '', cost: '', ingredients: '' }] },
+      breakfast: { items: [{ id: `breakfast-${now}`, name: '', quantity: '', unit: '', cost: '', total: '', ingredients: '' }] },
+      lunch: { items: [{ id: `lunch-${now + 1}`, name: '', quantity: '', unit: '', cost: '', total: '', ingredients: '' }] },
+      dinner: { items: [{ id: `dinner-${now + 2}`, name: '', quantity: '', unit: '', cost: '', total: '', ingredients: '' }] },
       price: '',
     });
   };
 
-  // Helper function to get day name from date string
-  const getDayName = (dateString: string): string => {
-    const date = new Date(dateString);
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return days[date.getDay()];
-  };
+  const openMessAnalysis = useCallback(() => {
+    setActiveTab('management');
+    window.setTimeout(() => {
+      analysisSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }, []);
 
   // Calculate mess statistics for management tab
   const messStats = useMemo(() => {
-    const allItems: Array<{ name: string; quantity: string; unit?: string; mealType: string; date: string }> = [];
-    let totalEntries = messEntries.length;
+    const dataToAnalyze = filteredEntries; // Use filtered entries
+    const allItems: Array<{ name: string; quantity: string; unit?: string; mealType: string; date: string; numericQty: number; cost?: number }> = [];
+    const totalEntries = dataToAnalyze.length;
     let totalMeals = 0;
+    let breakfastCost = 0;
+    let lunchCost = 0;
+    let dinnerCost = 0;
+    let leftoverSold = 0;
+    let kitchenWaste = 0;
 
-    messEntries.forEach((entry) => {
+    const getItemTotal = (item: { quantity: string; cost?: string; total?: string }) => {
+      const total = parseFloat(String(item.total)) || 0;
+      if (total > 0) return total;
+      const qty = parseFloat(String(item.quantity)) || 0;
+      const cost = parseFloat(String(item.cost)) || 0;
+      return qty * cost;
+    };
+
+    // Helper to extract numeric value from quantity string
+    const extractNumericQuantity = (quantity: string): number => {
+      const numMatch = String(quantity).match(/(\d+\.?\d*)/);
+      return numMatch ? parseFloat(numMatch[0]) : 0;
+    };
+
+    dataToAnalyze.forEach((entry) => {
+      const resolvedDate = getEntryDate(entry);
+      const normalizedDate = resolvedDate ? resolvedDate.toISOString().split('T')[0] : 'unknown-date';
+
       ['breakfast', 'lunch', 'dinner'].forEach((mealType) => {
         const meal = entry[mealType as MealType];
         if (meal.items.length > 0) {
           totalMeals++;
         }
+
+        const mealCost = meal.items.reduce((sum, item) => sum + getItemTotal(item as any), 0);
+        if (mealType === 'breakfast') breakfastCost += mealCost;
+        if (mealType === 'lunch') lunchCost += mealCost;
+        if (mealType === 'dinner') dinnerCost += mealCost;
+
         meal.items.forEach((item) => {
+          const total = getItemTotal(item as any);
+          const itemName = item.name.toLowerCase();
+
+          if (itemName.includes('leftover') || itemName.includes('sold')) {
+            leftoverSold += total;
+          }
+
+          if (itemName.includes('waste')) {
+            kitchenWaste += total;
+          }
+
+          const numericQty = extractNumericQuantity(item.quantity);
           allItems.push({
             name: item.name,
             quantity: item.quantity,
             unit: item.unit,
             mealType: mealType.charAt(0).toUpperCase() + mealType.slice(1),
-            date: entry.date,
+            date: normalizedDate,
+            numericQty,
+            cost: item.cost ? parseFloat(String(item.cost)) : undefined,
           });
         });
       });
     });
 
     // Group items by name to calculate totals
-    const itemMap = new Map<string, { totalQuantity: number; unit: string; occurrences: number; dates: string[] }>();
+    const itemMap = new Map<string, { totalQuantity: number; unit: string; occurrences: number; dates: string[]; totalCost: number }>();
     
     allItems.forEach((item) => {
       const existing = itemMap.get(item.name);
-      const quantity = parseFloat(item.quantity) || 0;
+      const itemCost = item.cost || 0;
       
       if (existing) {
-        existing.totalQuantity += quantity;
+        existing.totalQuantity += item.numericQty;
         existing.occurrences += 1;
+        existing.totalCost += itemCost;
         if (!existing.dates.includes(item.date)) {
           existing.dates.push(item.date);
         }
       } else {
         itemMap.set(item.name, {
-          totalQuantity: quantity,
+          totalQuantity: item.numericQty,
           unit: item.unit || '',
           occurrences: 1,
           dates: [item.date],
+          totalCost: itemCost,
         });
       }
     });
 
-    // Convert to array and sort by total quantity
+    // Convert to array and sort by frequency first, then by quantity
     const materialUsage = Array.from(itemMap.entries())
       .map(([name, data], index) => ({
         id: `material-${index}-${name}`,
@@ -410,17 +574,98 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
         unit: data.unit,
         occurrences: data.occurrences,
         datesUsed: data.dates.length,
+        totalCost: data.totalCost,
       }))
-      .sort((a, b) => b.totalQuantity - a.totalQuantity);
+      .sort((a, b) => {
+        if (b.occurrences !== a.occurrences) {
+          return b.occurrences - a.occurrences;
+        }
+        return b.totalQuantity - a.totalQuantity;
+      });
+
+    // Time-series data for material usage summary graph
+    const availableMaterialsCount = itemMap.size;
+    const dateMap = new Map<string, {
+      dateLabel: string;
+      date: string;
+      usageEvents: number;
+      totalQuantity: number;
+      totalCost: number;
+      materialsAvailable: number;
+      uniqueMaterialNames: Set<string>;
+    }>();
+
+    allItems.forEach((item) => {
+      const existing = dateMap.get(item.date);
+      if (existing) {
+        existing.usageEvents += 1;
+        existing.totalQuantity += item.numericQty;
+        existing.totalCost += (item.cost || 0);
+        if (item.name.trim()) {
+          existing.uniqueMaterialNames.add(item.name.trim().toLowerCase());
+        }
+      } else {
+        dateMap.set(item.date, {
+          dateLabel: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          date: item.date,
+          usageEvents: 1,
+          totalQuantity: item.numericQty,
+          totalCost: item.cost || 0,
+          materialsAvailable: availableMaterialsCount,
+          uniqueMaterialNames: new Set(item.name.trim() ? [item.name.trim().toLowerCase()] : []),
+        });
+      }
+    });
+
+    const timeSeriesData = Array.from(dateMap.values())
+      .map((day) => {
+        const materialsUsedCount = day.uniqueMaterialNames.size;
+        const utilizationPercent = day.materialsAvailable > 0
+          ? Number(((materialsUsedCount / day.materialsAvailable) * 100).toFixed(2))
+          : 0;
+
+        return {
+          dateLabel: day.dateLabel,
+          date: day.date,
+          usageEvents: day.usageEvents,
+          totalQuantity: day.totalQuantity,
+          totalCost: day.totalCost,
+          materialsAvailable: day.materialsAvailable,
+          materialsUsedCount,
+          utilizationPercent,
+        };
+      })
+      .sort((a, b) => {
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      });
+
+    // Top materials chart data
+    const topMaterials = materialUsage.slice(0, 10).map(item => ({
+      name: item.name,
+      totalQuantity: item.totalQuantity,
+      occurrences: item.occurrences,
+    }));
+
+    const averageDailyUtilization = timeSeriesData.length > 0
+      ? timeSeriesData.reduce((sum, item) => sum + item.utilizationPercent, 0) / timeSeriesData.length
+      : 0;
 
     return {
       totalEntries,
       totalMeals,
       totalItems: allItems.length,
       uniqueMaterials: itemMap.size,
+      breakfastCost,
+      lunchCost,
+      dinnerCost,
+      leftoverSold,
+      kitchenWaste,
       materialUsage,
+      timeSeriesData,
+      topMaterials,
+      averageDailyUtilization,
     };
-  }, [messEntries]);
+  }, [filteredEntries, getEntryDate]);
 
   // Define tabs
   const tabs = [
@@ -445,17 +690,23 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
     {
       key: 'totalQuantity',
       label: 'Total Quantity',
-      render: (row) => `${row.totalQuantity} ${row.unit || ''}`,
+      render: (row) => {
+        const qty = row.totalQuantity > 0 ? row.totalQuantity.toFixed(2) : '0';
+        const unit = row.unit || 'units';
+        return `${qty} ${unit}`;
+      },
       sortable: true,
     },
     {
       key: 'occurrences',
       label: 'Times Used',
+      render: (row) => `${row.occurrences} times`,
       sortable: true,
     },
     {
       key: 'datesUsed',
       label: 'Days Used',
+      render: (row) => `${row.datesUsed} days`,
       sortable: true,
     },
   ];
@@ -489,16 +740,25 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
               <h3 className="text-lg font-semibold text-slate-900">Mess Entries</h3>
               <p className="text-sm text-slate-600">View and manage daily mess entries</p>
             </div>
-            <Button
-              variant="primary"
-              onClick={() => {
-                resetForm();
-                setIsAddModalOpen(true);
-              }}
-              icon={PlusIcon}
-            >
-              Add Mess Entry
-            </Button>
+                <div className="flex items-center gap-3 flex-wrap justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={openMessAnalysis}
+                    icon={ChartBarIcon}
+                  >
+                    Mess Analysis
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      resetForm();
+                      setIsAddModalOpen(true);
+                    }}
+                    icon={PlusIcon}
+                  >
+                    Add Mess Entry
+                  </Button>
+                </div>
           </div>
 
           {/* Mess Entries List */}
@@ -554,10 +814,15 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <h4 className="font-semibold text-slate-900 mb-2">Breakfast</h4>
                   {entry.breakfast.items.length > 0 ? (
-                    <ul className="space-y-1">
+                    <ul className="space-y-2">
                       {entry.breakfast.items.map((item, idx) => (
-                        <li key={idx} className="text-sm text-slate-700">
-                          • {item.name} - {item.quantity} {item.unit || ''}
+                        <li key={idx} className="text-sm text-slate-700 bg-white p-2 rounded border border-yellow-100">
+                          <div className="font-medium">{item.name}</div>
+                          <div className="text-xs text-slate-600 mt-1">
+                            Qty: {item.quantity} {item.unit || ''}
+                            {item.cost && ` | Cost: $${item.cost}`}
+                            {item.total && ` | Total: $${item.total}`}
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -565,8 +830,8 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                     <p className="text-sm text-slate-500">No items</p>
                   )}
                   {entry.breakfast.notes && (
-                    <p className="text-xs text-slate-600 mt-2 italic">
-                      {entry.breakfast.notes}
+                    <p className="text-xs text-slate-600 mt-2 italic border-t border-yellow-200 pt-2">
+                      📝 {entry.breakfast.notes}
                     </p>
                   )}
                 </div>
@@ -575,10 +840,15 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <h4 className="font-semibold text-slate-900 mb-2">Lunch</h4>
                   {entry.lunch.items.length > 0 ? (
-                    <ul className="space-y-1">
+                    <ul className="space-y-2">
                       {entry.lunch.items.map((item, idx) => (
-                        <li key={idx} className="text-sm text-slate-700">
-                          • {item.name} - {item.quantity} {item.unit || ''}
+                        <li key={idx} className="text-sm text-slate-700 bg-white p-2 rounded border border-blue-100">
+                          <div className="font-medium">{item.name}</div>
+                          <div className="text-xs text-slate-600 mt-1">
+                            Qty: {item.quantity} {item.unit || ''}
+                            {item.cost && ` | Cost: $${item.cost}`}
+                            {item.total && ` | Total: $${item.total}`}
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -586,8 +856,8 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                     <p className="text-sm text-slate-500">No items</p>
                   )}
                   {entry.lunch.notes && (
-                    <p className="text-xs text-slate-600 mt-2 italic">
-                      {entry.lunch.notes}
+                    <p className="text-xs text-slate-600 mt-2 italic border-t border-blue-200 pt-2">
+                      📝 {entry.lunch.notes}
                     </p>
                   )}
                 </div>
@@ -596,10 +866,15 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                   <h4 className="font-semibold text-slate-900 mb-2">Dinner</h4>
                   {entry.dinner.items.length > 0 ? (
-                    <ul className="space-y-1">
+                    <ul className="space-y-2">
                       {entry.dinner.items.map((item, idx) => (
-                        <li key={idx} className="text-sm text-slate-700">
-                          • {item.name} - {item.quantity} {item.unit || ''}
+                        <li key={idx} className="text-sm text-slate-700 bg-white p-2 rounded border border-purple-100">
+                          <div className="font-medium">{item.name}</div>
+                          <div className="text-xs text-slate-600 mt-1">
+                            Qty: {item.quantity} {item.unit || ''}
+                            {item.cost && ` | Cost: $${item.cost}`}
+                            {item.total && ` | Total: $${item.total}`}
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -607,8 +882,8 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                     <p className="text-sm text-slate-500">No items</p>
                   )}
                   {entry.dinner.notes && (
-                    <p className="text-xs text-slate-600 mt-2 italic">
-                      {entry.dinner.notes}
+                    <p className="text-xs text-slate-600 mt-2 italic border-t border-purple-200 pt-2">
+                      📝 {entry.dinner.notes}
                     </p>
                   )}
                 </div>
@@ -628,6 +903,196 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
           transition={{ duration: 0.3 }}
           className="space-y-6"
         >
+          {/* Filter Bar */}
+          <div className="bg-white rounded-xl border-2 border-slate-200 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Filters</h3>
+                <p className="text-sm text-slate-600 mt-1">Select a time period to analyze mess data</p>
+              </div>
+            </div>
+
+            {/* Filter Buttons */}
+            <div className="flex flex-wrap gap-3 mb-4">
+              <button
+                onClick={() => {
+                  setFilterType('week');
+                  setShowCustomFilter(false);
+                }}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filterType === 'week'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                This Week
+              </button>
+              <button
+                onClick={() => {
+                  setFilterType('month');
+                  setShowCustomFilter(false);
+                }}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filterType === 'month'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                This Month
+              </button>
+              <button
+                onClick={() => {
+                  setFilterType('year');
+                  setShowCustomFilter(false);
+                }}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filterType === 'year'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                This Year
+              </button>
+              <button
+                onClick={() => {
+                  setFilterType('custom');
+                  setShowCustomFilter(!showCustomFilter);
+                }}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                  filterType === 'custom'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <CalendarIcon className="w-4 h-4" />
+                Custom Range
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-slate-500">Selected Period Entries</p>
+                  <p className="text-2xl font-semibold text-slate-900">{messStats.totalEntries}</p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                  <CubeIcon className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-slate-500">Materials Tracked</p>
+                  <p className="text-2xl font-semibold text-slate-900">{messStats.uniqueMaterials}</p>
+                </div>
+                <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                  <CubeIcon className="w-6 h-6 text-emerald-600" />
+                </div>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-slate-500">Total Items Used</p>
+                  <p className="text-2xl font-semibold text-slate-900">{messStats.totalItems}</p>
+                </div>
+                <div className="w-12 h-12 bg-sky-100 rounded-xl flex items-center justify-center">
+                  <CurrencyDollarIcon className="w-6 h-6 text-sky-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Custom Date Range Picker */}
+            {showCustomFilter && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="bg-slate-50 rounded-lg p-4 mb-4 border border-slate-200"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">End Date</label>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Date Range Display */}
+            {(() => {
+              const { start, end } = getDateRange();
+              return (
+                <div className="text-sm text-slate-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  📅 Showing data from <span className="font-medium">{start.toLocaleDateString()}</span> to{' '}
+                  <span className="font-medium">{end.toLocaleDateString()}</span>
+                  {filteredEntries.length > 0 && (
+                    <span className="ml-2">({filteredEntries.length} entries)</span>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Cost & Sales Overview */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+            <div className="bg-amber-50 border border-amber-200 p-5 rounded-xl shadow-sm">
+              <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center mb-4">
+                <CurrencyDollarIcon className="w-6 h-6 text-amber-600" />
+              </div>
+              <p className="text-sm text-amber-700 font-medium">Breakfast Cost</p>
+              <p className="text-2xl font-bold text-amber-950 mt-1">${messStats.breakfastCost.toFixed(2)}</p>
+              <p className="text-xs text-amber-700 mt-1">Total cost from breakfast items</p>
+            </div>
+
+            <div className="bg-sky-50 border border-sky-200 p-5 rounded-xl shadow-sm">
+              <div className="w-12 h-12 bg-sky-100 rounded-lg flex items-center justify-center mb-4">
+                <CurrencyDollarIcon className="w-6 h-6 text-sky-600" />
+              </div>
+              <p className="text-sm text-sky-700 font-medium">Lunch Cost</p>
+              <p className="text-2xl font-bold text-sky-950 mt-1">${messStats.lunchCost.toFixed(2)}</p>
+              <p className="text-xs text-sky-700 mt-1">Total cost from lunch items</p>
+            </div>
+
+            <div className="bg-violet-50 border border-violet-200 p-5 rounded-xl shadow-sm">
+              <div className="w-12 h-12 bg-violet-100 rounded-lg flex items-center justify-center mb-4">
+                <CurrencyDollarIcon className="w-6 h-6 text-violet-600" />
+              </div>
+              <p className="text-sm text-violet-700 font-medium">Dinner Cost</p>
+              <p className="text-2xl font-bold text-violet-950 mt-1">${messStats.dinnerCost.toFixed(2)}</p>
+              <p className="text-xs text-violet-700 mt-1">Total cost from dinner items</p>
+            </div>
+
+            <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-xl shadow-sm">
+              <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mb-4">
+                <CurrencyDollarIcon className="w-6 h-6 text-emerald-600" />
+              </div>
+              <p className="text-sm text-emerald-700 font-medium">Leftover Sold</p>
+              <p className="text-2xl font-bold text-emerald-950 mt-1">${messStats.leftoverSold.toFixed(2)}</p>
+              <p className="text-xs text-emerald-700 mt-1">Inferred from items named leftover/sold</p>
+            </div>
+
+            <div className="bg-rose-50 border border-rose-200 p-5 rounded-xl shadow-sm">
+              <div className="w-12 h-12 bg-rose-100 rounded-lg flex items-center justify-center mb-4">
+                <TrashIcon className="w-6 h-6 text-rose-600" />
+              </div>
+              <p className="text-sm text-rose-700 font-medium">Kitchen Waste</p>
+              <p className="text-2xl font-bold text-rose-950 mt-1">${messStats.kitchenWaste.toFixed(2)}</p>
+              <p className="text-xs text-rose-700 mt-1">Inferred from items named waste</p>
+            </div>
+          </div>
+
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl">
@@ -682,7 +1147,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 </p>
               </div>
               {messStats.materialUsage.filter(item => {
-                const breakfastItems = messEntries.flatMap(entry => 
+                const breakfastItems = filteredEntries.flatMap(entry => 
                   entry.breakfast.items.map(item => item.name)
                 );
                 return breakfastItems.includes(item.name);
@@ -694,7 +1159,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 <DataTable
                   columns={materialColumns}
                   data={messStats.materialUsage.filter(item => {
-                    const breakfastItems = messEntries.flatMap(entry => 
+                    const breakfastItems = filteredEntries.flatMap(entry => 
                       entry.breakfast.items.map(item => item.name)
                     );
                     return breakfastItems.includes(item.name);
@@ -716,7 +1181,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 </p>
               </div>
               {messStats.materialUsage.filter(item => {
-                const lunchItems = messEntries.flatMap(entry => 
+                const lunchItems = filteredEntries.flatMap(entry => 
                   entry.lunch.items.map(item => item.name)
                 );
                 return lunchItems.includes(item.name);
@@ -728,7 +1193,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 <DataTable
                   columns={materialColumns}
                   data={messStats.materialUsage.filter(item => {
-                    const lunchItems = messEntries.flatMap(entry => 
+                    const lunchItems = filteredEntries.flatMap(entry => 
                       entry.lunch.items.map(item => item.name)
                     );
                     return lunchItems.includes(item.name);
@@ -750,7 +1215,7 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 </p>
               </div>
               {messStats.materialUsage.filter(item => {
-                const dinnerItems = messEntries.flatMap(entry => 
+                const dinnerItems = filteredEntries.flatMap(entry => 
                   entry.dinner.items.map(item => item.name)
                 );
                 return dinnerItems.includes(item.name);
@@ -762,13 +1227,177 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 <DataTable
                   columns={materialColumns}
                   data={messStats.materialUsage.filter(item => {
-                    const dinnerItems = messEntries.flatMap(entry => 
+                    const dinnerItems = filteredEntries.flatMap(entry => 
                       entry.dinner.items.map(item => item.name)
                     );
                     return dinnerItems.includes(item.name);
                   })}
                   emptyMessage="No dinner items found"
                 />
+              )}
+            </div>
+          </div>
+
+          {/* Material Usage Analytics - Graphs */}
+          <div className="space-y-6">
+            {/* Material Usage Trend Over Time */}
+            <div ref={analysisSectionRef} className="bg-white rounded-xl border-2 border-slate-200 p-6 shadow-sm">
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  📈 Material Usage Trend
+                </h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  Daily summary of materials used vs total materials available for usage analysis
+                </p>
+              </div>
+
+              {messStats.timeSeriesData && messStats.timeSeriesData.length > 0 ? (
+                <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <p className="text-xs text-slate-500">Avg Daily Materials Used</p>
+                    <p className="text-xl font-semibold text-slate-900">
+                      {(
+                        messStats.timeSeriesData.reduce((sum, item) => sum + item.materialsUsedCount, 0) /
+                        Math.max(messStats.timeSeriesData.length, 1)
+                      ).toFixed(1)}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <p className="text-xs text-slate-500">Materials Available</p>
+                    <p className="text-xl font-semibold text-slate-900">{messStats.uniqueMaterials}</p>
+                  </div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <p className="text-xs text-slate-500">Avg Daily Utilization</p>
+                    <p className="text-xl font-semibold text-slate-900">{messStats.averageDailyUtilization.toFixed(1)}%</p>
+                  </div>
+                </div>
+                <div className="w-full h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={messStats.timeSeriesData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis 
+                        dataKey="dateLabel" 
+                        stroke="#64748b"
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis 
+                        stroke="#64748b"
+                        tick={{ fontSize: 12 }}
+                      />
+                      <Tooltip 
+                        formatter={(value: number | string, name: string) => {
+                          if (name === 'Materials Used') {
+                            return [`${value} materials`, name];
+                          }
+                          if (name === 'Total Materials Available') {
+                            return [`${value} materials`, name];
+                          }
+                          return [value, name];
+                        }}
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="materialsUsedCount" 
+                        stroke="#3b82f6" 
+                        strokeWidth={2}
+                        dot={{ fill: '#3b82f6', r: 4 }}
+                        activeDot={{ r: 6 }}
+                        name="Materials Used"
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="materialsAvailable" 
+                        stroke="#f59e0b" 
+                        strokeWidth={2}
+                        dot={{ fill: '#f59e0b', r: 4 }}
+                        activeDot={{ r: 6 }}
+                        name="Total Materials Available"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                </>
+              ) : (
+                <div className="text-center py-12 bg-slate-50 rounded-lg border border-slate-200">
+                  <p className="text-slate-600">No data available for the selected period</p>
+                </div>
+              )}
+            </div>
+
+            {/* Top Materials Usage - Bar Chart */}
+            <div className="bg-white rounded-xl border-2 border-slate-200 p-6 shadow-sm">
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  📊 Top Materials by Frequency
+                </h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  Most frequently used materials for identifying bulk purchase candidates
+                </p>
+              </div>
+
+              {messStats.topMaterials && messStats.topMaterials.length > 0 ? (
+                <div className="w-full h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={messStats.topMaterials}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#64748b"
+                        tick={{ fontSize: 11 }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={100}
+                      />
+                      <YAxis 
+                        stroke="#64748b"
+                        tick={{ fontSize: 12 }}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#fff', 
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Legend />
+                      <Bar 
+                        dataKey="occurrences" 
+                        fill="#f59e0b" 
+                        name="Times Used"
+                        radius={[8, 8, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="text-center py-12 bg-slate-50 rounded-lg border border-slate-200">
+                  <p className="text-slate-600">No data available for the selected period</p>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {messStats.topMaterials && messStats.topMaterials.length > 0 && (
+                <div className="mt-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
+                  <h4 className="font-semibold text-amber-900 mb-2">💡 Bulk Purchase Recommendation</h4>
+                  <p className="text-sm text-amber-800">
+                    Based on usage patterns, consider buying <span className="font-bold">{messStats.topMaterials[0]?.name}</span> in bulk. 
+                    It was used <span className="font-bold">{messStats.topMaterials[0]?.occurrences}</span> times during this period,
+                    with a total quantity of <span className="font-bold">{messStats.topMaterials[0]?.totalQuantity.toFixed(2)}</span>,
+                    making it the most frequently used material.
+                  </p>
+                  {messStats.topMaterials.slice(0, 3).length > 1 && (
+                    <p className="text-sm text-amber-800 mt-2">
+                      Other high-volume materials: {messStats.topMaterials.slice(1, 3).map(m => m.name).join(', ')}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -795,6 +1424,12 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
                 emptyMessage="No materials found"
               />
             )}
+          </div>
+
+          <div className="flex justify-end">
+            <Button variant="ghost" onClick={openMessAnalysis} icon={ChartBarIcon}>
+              Reopen Mess Analysis
+            </Button>
           </div>
 
           {/* Cost Summary (Placeholder for future cost tracking) */}
@@ -988,10 +1623,10 @@ export const MessManagement: React.FC<MessManagementProps> = ({ hostelId }) => {
 // MealSection component defined outside to prevent recreation on each render
 interface MealSectionProps {
   mealType: MealType;
-  mealData: { items: Array<{ id?: string; name: string; quantity: string; unit?: string; cost?: string; ingredients?: string }>; notes?: string };
+  mealData: { items: Array<{ id?: string; name: string; quantity: string; unit?: string; cost?: string; total?: string; ingredients?: string }>; notes?: string };
   onAddItem: () => void;
   onRemoveItem: (index: number) => void;
-  onItemChange: (index: number, field: 'name' | 'quantity' | 'unit' | 'cost' | 'ingredients', value: string) => void;
+  onItemChange: (index: number, field: 'name' | 'quantity' | 'unit' | 'cost' | 'ingredients' | 'total', value: string) => void;
   onNotesChange: (notes: string) => void;
 }
 
@@ -1025,81 +1660,114 @@ const MealSectionComponent: React.FC<MealSectionProps> = React.memo(({
         </Button>
       </div>
 
-      <div className="space-y-3 mb-3">
-        {mealData.items.map((item, index) => (
-          <div key={item.id || `item-${mealType}-${index}`} className="bg-white rounded-lg p-3 border border-slate-200">
-            {/* Item Name Row */}
-            <div className="flex gap-2 items-start mb-2">
-              <input
-                type="text"
-                placeholder="Item name (e.g., Omelette, Rice, Bread)"
-                value={item.name}
-                onChange={(e) => onItemChange(index, 'name', e.target.value)}
-                className="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
-              />
-              {mealData.items.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => onRemoveItem(index)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  title="Remove item"
-                >
-                  <TrashIcon className="w-5 h-5" />
-                </button>
-              )}
-            </div>
+      <div className="mb-3">
+        <div className="overflow-x-auto">
+          <table className="w-full table-fixed border-collapse">
+            <thead>
+              <tr className="text-left text-xs text-slate-600">
+                <th className="px-2 py-2 w-3/10">Menu</th>
+                <th className="px-2 py-2 w-1/10">Quantity</th>
+                <th className="px-2 py-2 w-1/10">Unit</th>
+                <th className="px-2 py-2 w-1/10">Cost</th>
+                <th className="px-2 py-2 w-1/10">Total</th>
+                <th className="px-2 py-2 w-1/10"> </th>
+              </tr>
+            </thead>
+            <tbody>
+              {mealData.items.map((item, index) => {
+                const qty = parseFloat(String(item.quantity)) || 0;
+                const cost = parseFloat(String(item.cost)) || 0;
+                const rowTotal = qty * cost;
 
-            {/* Quantity and Unit Row */}
-            <div className="flex gap-2 items-end mb-2">
-              <div className="flex-1">
-                <label className="text-xs text-slate-600 font-medium block mb-1">Quantity</label>
-                <input
-                  type="text"
-                  placeholder="Quantity"
-                  value={item.quantity}
-                  onChange={(e) => onItemChange(index, 'quantity', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-xs text-slate-600 font-medium block mb-1">Unit</label>
-                <input
-                  type="text"
-                  placeholder="kg, pcs, ltr, tbsp, etc"
-                  value={item.unit || ''}
-                  onChange={(e) => onItemChange(index, 'unit', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Cost and Ingredients Row */}
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <label className="text-xs text-slate-600 font-medium block mb-1">Cost</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={item.cost || ''}
-                  onChange={(e) => onItemChange(index, 'cost', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-xs text-slate-600 font-medium block mb-1">Ingredients</label>
-                <input
-                  type="text"
-                  placeholder="Salt, Pepper, Butter, etc"
-                  value={item.ingredients || ''}
-                  onChange={(e) => onItemChange(index, 'ingredients', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-        ))}
+                return (
+                  <tr key={item.id || `item-${mealType}-${index}`} className="bg-white border-b border-slate-100">
+                    <td className="px-2 py-3 align-top">
+                      <input
+                        type="text"
+                        placeholder="Item name (e.g., Rice)"
+                        value={item.name}
+                        onChange={(e) => onItemChange(index, 'name', e.target.value)}
+                        className="w-full px-2 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                    </td>
+                    <td className="px-2 py-3 align-top">
+                      <input
+                        type="text"
+                        placeholder="Qty"
+                        value={item.quantity}
+                        onChange={(e) => onItemChange(index, 'quantity', e.target.value)}
+                        className="w-full px-2 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                    </td>
+                    <td className="px-2 py-3 align-top">
+                      <div className="flex gap-2">
+                        <select
+                          value={item.unit || ''}
+                          onChange={(e) => onItemChange(index, 'unit', e.target.value)}
+                          className="px-2 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm w-36"
+                        >
+                          <option value="">Select</option>
+                          <option value="kg">kg</option>
+                          <option value="dozen">dozen</option>
+                          <option value="liter">liter</option>
+                          <option value="pcs">pcs</option>
+                        </select>
+                      </div>
+                    </td>
+                    <td className="px-2 py-3 align-top">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={item.cost || ''}
+                        onChange={(e) => onItemChange(index, 'cost', e.target.value)}
+                        className="w-full px-2 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                      />
+                    </td>
+                    <td className="px-2 py-3 align-top">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={item.total !== undefined ? String(item.total) : rowTotal.toFixed(2)}
+                        onChange={(e) => onItemChange(index, 'total', e.target.value)}
+                        className="w-full px-2 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                      />
+                    </td>
+                    <td className="px-2 py-3 align-top text-right">
+                      {mealData.items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => onRemoveItem(index)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Remove item"
+                        >
+                          <TrashIcon className="w-5 h-5" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={4} className="px-2 py-3 text-right text-sm font-semibold">Grand Total</td>
+                <td className="px-2 py-3 text-sm font-semibold">
+                  ${mealData.items.reduce((sum, it) => {
+                    const qty = parseFloat(String(it.quantity)) || 0;
+                    const cost = parseFloat(String(it.cost)) || 0;
+                    const total = parseFloat(String(it.total)) || (qty * cost) || 0;
+                    return sum + total;
+                  }, 0).toFixed(2)}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
 
       <div>

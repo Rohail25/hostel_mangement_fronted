@@ -36,6 +36,7 @@ interface ProspectFormData {
   
   // Professional
   professionType: string; // student, job, business
+  status: 'Active' | 'Inactive';
   // Student fields
   academicName: string;
   academicAddress: string;
@@ -106,6 +107,7 @@ const ProspectForm: React.FC<ProspectFormProps> = ({
     previousProfilePhoto: null,
     previousAttachments: null,
     professionType: '',
+    status: 'Active',
     academicName: '',
     academicAddress: '',
     academicLocation: '',
@@ -158,6 +160,7 @@ const ProspectForm: React.FC<ProspectFormProps> = ({
         previousProfilePhoto: null,
         previousAttachments: null,
         professionType: '',
+        status: 'Active',
         academicName: '',
         academicAddress: '',
         academicLocation: '',
@@ -548,6 +551,20 @@ const ProspectForm: React.FC<ProspectFormProps> = ({
                             { value: 'student', label: 'Student' },
                             { value: 'job', label: 'Job' },
                             { value: 'business', label: 'Business' },
+                          ]}
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Status <span className="text-red-500">*</span>
+                        </label>
+                        <Select
+                          value={formData.status}
+                          onChange={(value) => setFormData({ ...formData, status: value as 'Active' | 'Inactive' })}
+                          options={[
+                            { value: 'Active', label: 'Active' },
+                            { value: 'Inactive', label: 'Inactive' },
                           ]}
                         />
                       </div>

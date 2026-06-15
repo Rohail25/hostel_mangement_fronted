@@ -24,7 +24,7 @@ interface ModalData {
 interface ViewModalProps {
   modal: {
     mode: 'view' | 'edit';
-    type: 'Tenant' | 'Employee';
+    type: 'Tenant' | 'Employee' | 'Owner';
     data: ModalData;
   };
   onClose: () => void;
@@ -238,7 +238,6 @@ const ViewModal: React.FC<ViewModalProps> = ({
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Info label="Name" value={data.name || ''} />
-              <Info label="Username" value={data.username || 'N/A'} />
               <Info label="Status" value={data.status || ''} />
               <Info label="Email" value={data.email || ''} />
               <Info label="Phone" value={data.phone || 'N/A'} />
@@ -247,6 +246,7 @@ const ViewModal: React.FC<ViewModalProps> = ({
               {data.department && <Info label="Department" value={data.department} />}
               {data.designation && <Info label="Designation" value={data.designation} />}
               <Info label="Join Date" value={data.joinDate ? new Date(data.joinDate).toLocaleDateString() : 'N/A'} />
+              <Info label="Contract End Date" value={data.terminationDate ? new Date(data.terminationDate).toLocaleDateString() : 'N/A'} />
               {data.salary && <Info label="Salary" value={`${data.salary} (${data.salaryType || 'monthly'})`} />}
               {data.workingHours && <Info label="Working Hours" value={data.workingHours} />}
               {data.hostel && <Info label="Hostel" value={data.hostel} />}
@@ -260,6 +260,16 @@ const ViewModal: React.FC<ViewModalProps> = ({
               {data.notes && <Info label="Notes" value={data.notes} />}
               {data.createdAt && <Info label="Created At" value={new Date(data.createdAt).toLocaleDateString()} />}
               {data.updatedAt && <Info label="Updated At" value={new Date(data.updatedAt).toLocaleDateString()} />}
+            </div>
+
+            <div className="mt-6">
+              <h4 className="font-semibold text-gray-900 mb-4">Access Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Info label="Username" value={data.username || 'N/A'} />
+                <Info label="Account Status" value={data.status || ''} />
+                <Info label="Hostel Access" value={data.hostel || 'N/A'} />
+                <Info label="Access Role" value={data.user?.userRole || data.role || 'N/A'} />
+              </div>
             </div>
             
             {data.documents && renderDocuments(data.documents)}

@@ -68,6 +68,8 @@ const PeopleHub: React.FC = () => {
     behavior: 5,
     punctuality: 5,
     cleanliness: 5,
+    referrals: 0,
+    timePeriod: '',
     remarks: '',
   });
   const [currentScoreEntity, setCurrentScoreEntity] = useState<{ type: 'Tenant' | 'Employee'; id: number; name: string } | null>(null);
@@ -273,10 +275,10 @@ const PeopleHub: React.FC = () => {
     return [];
   };
 
-  const saveScore = (type: 'Tenant' | 'Employee', id: number, scoreData: any) => {
+  const saveScore = async (type: 'Tenant' | 'Employee', id: number, scoreData: any) => {
     const key = getScoreKey(type, id);
     const historyKey = `score_history_${type.toLowerCase()}_${id}`;
-    
+
     // Calculate average
     const average = (scoreData.behavior + scoreData.punctuality + scoreData.cleanliness) / 3;
     const scoreRecord = {
@@ -284,17 +286,33 @@ const PeopleHub: React.FC = () => {
       average,
       date: new Date().toISOString(),
     };
-    
-    // Save current score
+
+    // Save current score locally
     localStorage.setItem(key, JSON.stringify(scoreRecord));
-    
+
     // Add to history
     const history = getScoreHistory(type, id);
     history.unshift(scoreRecord);
     // Keep only last 10 records
     if (history.length > 10) history.pop();
     localStorage.setItem(historyKey, JSON.stringify(history));
-    
+
+    // Persist tenant score to backend when possible
+    if (type === 'Tenant') {
+      try {
+        await tenantService.upsertTenantScore(id, {
+          behavior: scoreData.behavior,
+          punctuality: scoreData.punctuality,
+          cleanliness: scoreData.cleanliness,
+          remarks: scoreData.remarks,
+          referrals: scoreData.referrals,
+          timePeriod: scoreData.timePeriod,
+        });
+      } catch (backendError) {
+        console.error('Failed to persist tenant score to backend:', backendError);
+      }
+    }
+
     return scoreRecord;
   };
 
@@ -373,6 +391,7 @@ const PeopleHub: React.FC = () => {
             salary: employeeData.salary,
             salaryType: employeeData.salaryType,
             joinDate: employeeData.joinDate,
+            terminationDate: employeeData.terminationDate,
             workingHours: employeeData.workingHours,
             hostelId: employeeData.hostelId,
             hostel: employeeData.hostel?.name || 'N/A',
@@ -492,6 +511,7 @@ const PeopleHub: React.FC = () => {
             businessLocation: tenantData.businessLocation || '',
             businessAttachments: null,
             professionDescription: tenantData.professionDescription || '',
+            reference: tenantData.reference || '',
             emergencyContactName: emergencyContact.name || '',
             emergencyContactNumber: emergencyContact.phone || '',
             emergencyContactWhatsapp: tenantData.emergencyContactWhatsapp || emergencyContact.whatsappNumber || '',
@@ -513,6 +533,8 @@ const PeopleHub: React.FC = () => {
             securityDeposit: tenantData.securityDeposit?.toString() || '',
             lateFeesFine: tenantData.lateFeesFine || '',
             lateFeesPercentage: tenantData.lateFeesPercentage?.toString() || '',
+            lateFeesChargeDate: tenantData.lateFeesChargeDate ? new Date(tenantData.lateFeesChargeDate).toISOString().split('T')[0] : '',
+            otherDocuments: tenantData.otherDocuments?.map((doc: any) => ({ documentName: doc.name || '', documentFile: null })) || [],
             rentalDocument: null,
             previousRentalDocument: tenantData.rentalDocument || null,
             securityDepositFile: null,
@@ -590,6 +612,7 @@ const PeopleHub: React.FC = () => {
             salary: employeeData.employee.salary?.toString() || '',
             salaryType: employeeData.employee.salaryType || 'monthly',
             workingHours: employeeData.employee.workingHours || '',
+            terminationDate: employeeData.employee.terminationDate || '',
             reference: employeeData.employee.reference || '',
             cnicDocuments: null,
             previousCnicDocuments: employeeData.employee.cnicDocuments || null,
@@ -717,6 +740,7 @@ const PeopleHub: React.FC = () => {
             businessLocation: professionDetail.businessLocation || '',
             businessAttachments: null,
             professionDescription: prospectData.prospect.professionDescription || '',
+            status: prospectData.prospect.status || 'Active',
             emergencyContactName: emergencyContact.name || '',
             emergencyContactNumber: emergencyContact.phone || '',
             emergencyContactWhatsapp: prospectData.prospect.emergencyContactWhatsapp || emergencyContact.whatsappNumber || '',
@@ -847,6 +871,107 @@ const PeopleHub: React.FC = () => {
     }
   }, [selectedHostelId, activeSection]);
 
+  const handleTransfer = useCallback(async (id: number, type: 'Tenant' | 'Employee' | 'Prospect', currentStatus: string) => {
+    const normalizedStatus = String(currentStatus || '').toLowerCase();
+    const newStatus = normalizedStatus === 'active' ? 'inactive' : 'active';
+
+    const confirmMessage = type === 'Employee'
+      ? normalizedStatus === 'active'
+        ? 'Mark this employee as left/inactive?'
+        : 'Restore this employee to active status?'
+      : type === 'Prospect'
+        ? normalizedStatus === 'active'
+          ? 'Mark this prospect as inactive?'
+          : 'Restore this prospect to active status?'
+      : normalizedStatus === 'active'
+        ? 'Mark this tenant as left/inactive?'
+        : 'Restore this tenant to active status?';
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      if (type === 'Tenant') {
+        setTenantsLoading(true);
+        const formData = new FormData();
+        formData.append('status', newStatus);
+        await tenantService.updateTenant(id, formData);
+
+        setToast({
+          open: true,
+          type: 'success',
+          message: `Tenant status updated to ${newStatus === 'active' ? 'Active' : 'Inactive'} successfully!`,
+        });
+
+        if (selectedHostelId && activeSection === 'Tenants') {
+          try {
+            const tenantsData = await tenantService.getTenantsByHostel(Number(selectedHostelId));
+            setTenants(tenantsData);
+          } catch (refreshError) {
+            console.error('Error refreshing tenant list after status update:', refreshError);
+          }
+        }
+      } else if (type === 'Employee') {
+        setEmployeesLoading(true);
+        const formData = new FormData();
+        formData.append('status', newStatus);
+        await employeeService.updateEmployee(id, formData);
+
+        setToast({
+          open: true,
+          type: 'success',
+          message: `Employee status updated to ${newStatus === 'active' ? 'Active' : 'Inactive'} successfully!`,
+        });
+
+        if (selectedHostelId && activeSection === 'Employees') {
+          try {
+            const employeesData = await employeeService.getEmployeesByHostel(Number(selectedHostelId));
+            setEmployees(employeesData);
+          } catch (refreshError) {
+            console.error('Error refreshing employee list after status update:', refreshError);
+          }
+        }
+      } else if (type === 'Prospect') {
+        setProspectsLoading(true);
+        const formData = new FormData();
+        formData.append('status', newStatus);
+        await prospectService.updateProspect(id, formData);
+
+        setToast({
+          open: true,
+          type: 'success',
+          message: `Prospect status updated to ${newStatus === 'active' ? 'Active' : 'Inactive'} successfully!`,
+        });
+
+        if (activeSection === 'Prospects') {
+          try {
+            const prospectsData = await prospectService.getAllProspects();
+            setProspects(prospectsData);
+          } catch (refreshError) {
+            console.error('Error refreshing prospect list after status update:', refreshError);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Error updating status:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to update status. Please try again.';
+      setToast({
+        open: true,
+        type: 'error',
+        message: errorMessage,
+      });
+    } finally {
+      if (type === 'Tenant') {
+        setTenantsLoading(false);
+      } else if (type === 'Prospect') {
+        setProspectsLoading(false);
+      } else if (type === 'Employee') {
+        setEmployeesLoading(false);
+      }
+    }
+  }, [selectedHostelId, activeSection]);
+
   const handleAddClick = useCallback(() => {
     // Reset editing IDs - forms will reset themselves when opened
     setEditingTenantId(null);
@@ -876,6 +1001,7 @@ const PeopleHub: React.FC = () => {
     if (formDataFromComponent.whatsappNumber) {
       formData.append('whatsappNumber', formDataFromComponent.whatsappNumber);
     }
+    formData.append('reference', formDataFromComponent.reference);
     formData.append('gender', formDataFromComponent.gender);
     if (formDataFromComponent.gender === 'other' && formDataFromComponent.genderOther) {
       formData.append('genderOther', formDataFromComponent.genderOther);
@@ -972,10 +1098,16 @@ const PeopleHub: React.FC = () => {
     if (formDataFromComponent.emergencyContactName) {
       formData.append('emergencyContactName', formDataFromComponent.emergencyContactName);
     }
-    if (formDataFromComponent.emergencyContactNumber) {
+    if (formDataFromComponent.emergencyContactNumberLocal) {
+      const phone = `${formDataFromComponent.emergencyContactNumberCountry || '+92'} ${formDataFromComponent.emergencyContactNumberLocal}`.trim();
+      formData.append('emergencyContactNumber', phone);
+    } else if (formDataFromComponent.emergencyContactNumber) {
       formData.append('emergencyContactNumber', formDataFromComponent.emergencyContactNumber);
     }
-    if (formDataFromComponent.emergencyContactWhatsapp) {
+    if (formDataFromComponent.emergencyContactWhatsappLocal) {
+      const phone = `${formDataFromComponent.emergencyContactWhatsappCountry || '+92'} ${formDataFromComponent.emergencyContactWhatsappLocal}`.trim();
+      formData.append('emergencyContactWhatsapp', phone);
+    } else if (formDataFromComponent.emergencyContactWhatsapp) {
       formData.append('emergencyContactWhatsapp', formDataFromComponent.emergencyContactWhatsapp);
     }
     if (formDataFromComponent.emergencyContactRelation) {
@@ -987,15 +1119,24 @@ const PeopleHub: React.FC = () => {
     if (formDataFromComponent.anyDisease) {
       formData.append('anyDisease', formDataFromComponent.anyDisease);
     }
+    if (formDataFromComponent.diseaseDetails) {
+      formData.append('diseaseDetails', formDataFromComponent.diseaseDetails);
+    }
     if (formDataFromComponent.bloodGroup) {
       formData.append('bloodGroup', formDataFromComponent.bloodGroup);
     }
     
     // Nearest Relative fields
-    if (formDataFromComponent.nearestRelativeContact) {
+    if (formDataFromComponent.nearestRelativeContactLocal) {
+      const phone = `${formDataFromComponent.nearestRelativeContactCountry || '+92'} ${formDataFromComponent.nearestRelativeContactLocal}`.trim();
+      formData.append('nearestRelativeContact', phone);
+    } else if (formDataFromComponent.nearestRelativeContact) {
       formData.append('nearestRelativeContact', formDataFromComponent.nearestRelativeContact);
     }
-    if (formDataFromComponent.nearestRelativeWhatsapp) {
+    if (formDataFromComponent.nearestRelativeWhatsappLocal) {
+      const phone = `${formDataFromComponent.nearestRelativeWhatsappCountry || '+92'} ${formDataFromComponent.nearestRelativeWhatsappLocal}`.trim();
+      formData.append('nearestRelativeWhatsapp', phone);
+    } else if (formDataFromComponent.nearestRelativeWhatsapp) {
       formData.append('nearestRelativeWhatsapp', formDataFromComponent.nearestRelativeWhatsapp);
     }
     if (formDataFromComponent.nearestRelativeRelation) {
@@ -1029,8 +1170,13 @@ const PeopleHub: React.FC = () => {
     if (formDataFromComponent.lateFeesFine) {
       formData.append('lateFeesFine', formDataFromComponent.lateFeesFine);
     }
-    if (formDataFromComponent.lateFeesFine === 'Yes' && formDataFromComponent.lateFeesPercentage) {
-      formData.append('lateFeesPercentage', formDataFromComponent.lateFeesPercentage);
+    if (formDataFromComponent.lateFeesFine === 'Yes') {
+      if (formDataFromComponent.lateFeesPercentage) {
+        formData.append('lateFeesPercentage', formDataFromComponent.lateFeesPercentage);
+      }
+      if (formDataFromComponent.lateFeesChargeDate) {
+        formData.append('lateFeesChargeDate', formDataFromComponent.lateFeesChargeDate);
+      }
     }
     
     // Hostel document fields
@@ -1047,6 +1193,17 @@ const PeopleHub: React.FC = () => {
     if (formDataFromComponent.advancedRentReceivedFile) {
       Array.from(formDataFromComponent.advancedRentReceivedFile).forEach((file) => {
         formData.append('advancedRentReceivedFile', file);
+      });
+    }
+
+    if (formDataFromComponent.otherDocuments && formDataFromComponent.otherDocuments.length > 0) {
+      formDataFromComponent.otherDocuments.forEach((item) => {
+        if (item.documentName) {
+          formData.append('otherDocumentsName', item.documentName);
+        }
+        if (item.documentFile) {
+          formData.append('otherDocuments', item.documentFile);
+        }
       });
     }
 
@@ -1466,6 +1623,7 @@ const PeopleHub: React.FC = () => {
       if (formDataFromComponent.professionDescription) {
         formData.append('professionDescription', formDataFromComponent.professionDescription);
       }
+      formData.append('status', formDataFromComponent.status || 'Active');
       
       // Emergency contact fields
       if (formDataFromComponent.emergencyContactName) {
@@ -1561,6 +1719,8 @@ const PeopleHub: React.FC = () => {
         behavior: existingScore.behavior,
         punctuality: existingScore.punctuality,
         cleanliness: existingScore.cleanliness,
+        referrals: typeof existingScore.referrals === 'number' ? existingScore.referrals : 0,
+        timePeriod: existingScore.timePeriod || '',
         remarks: existingScore.remarks || '',
       });
     } else {
@@ -1568,17 +1728,19 @@ const PeopleHub: React.FC = () => {
         behavior: 5,
         punctuality: 5,
         cleanliness: 5,
+        referrals: 0,
+        timePeriod: '',
         remarks: '',
       });
     }
     setIsScoreModalOpen(true);
   };
 
-  const handleScoreSubmit = (e: React.FormEvent) => {
+  const handleScoreSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentScoreEntity) return;
 
-    const scoreRecord = saveScore(
+    const scoreRecord = await saveScore(
       currentScoreEntity.type,
       currentScoreEntity.id,
       scoreForm
@@ -1605,6 +1767,8 @@ const PeopleHub: React.FC = () => {
       behavior: 5,
       punctuality: 5,
       cleanliness: 5,
+      referrals: 0,
+      timePeriod: '',
       remarks: '',
     });
   };
@@ -1713,6 +1877,7 @@ const PeopleHub: React.FC = () => {
   const handleViewMemo = handleView;
   const handleEditMemo = handleEdit;
   const handleDeleteMemo = handleDelete;
+  const handleTransferMemo = handleTransfer;
 
   // Vendor wrapper component
   const vendorListWrapper = activeSection === 'Vendors' ? (
@@ -1759,6 +1924,7 @@ const PeopleHub: React.FC = () => {
               onView={handleViewMemo}
               onEdit={handleEditMemo}
               onDelete={handleDeleteMemo}
+              onTransfer={handleTransferMemo}
               onAddClick={handleAddClick}
               vendorListWrapper={vendorListWrapper}
             />

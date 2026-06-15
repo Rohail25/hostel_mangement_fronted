@@ -84,8 +84,13 @@ const HostelEdit: React.FC = () => {
           street: data.address?.street?.trim() ?? data.street?.trim(),
         },
         description: data.description?.trim() || undefined,
+        amenities: Array.isArray(data.amenities) ? data.amenities : [],
         category: data.category,
         type: data.type,
+        totalFloors: data.totalFloors,
+        totalRooms: data.totalRooms,
+        totalBeds: data.totalBeds,
+        arrangements: Array.isArray(data.arrangements) ? data.arrangements : [],
         operatingHours: {
           checkIn: data.operatingHours?.checkIn || data.checkInTime,
           checkOut: data.operatingHours?.checkOut || data.checkOutTime,

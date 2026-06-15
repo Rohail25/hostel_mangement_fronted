@@ -16,6 +16,20 @@ import {
 } from '@heroicons/react/24/outline';
 import { API_BASE_URL } from '../../../../services/api.config';
 
+const countryCityMap: Record<string, string[]> = {
+  Pakistan: ['Islamabad', 'Lahore', 'Karachi', 'Peshawar', 'Quetta', 'Multan'],
+  'United States': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Miami'],
+  India: ['Delhi', 'Mumbai', 'Bangalore', 'Hyderabad', 'Chennai'],
+  'United Kingdom': ['London', 'Manchester', 'Liverpool', 'Birmingham', 'Leeds'],
+};
+
+const countryPhoneCodeMap: Record<string, string> = {
+  Pakistan: '+92',
+  'United States': '+1',
+  India: '+91',
+  'United Kingdom': '+44',
+};
+
 interface EmployeeFormData {
   // Personal Information
   name: string;
@@ -38,6 +52,10 @@ interface EmployeeFormData {
   salary: string;
   salaryType: string;
   workingHours: string;
+  workingHoursStart: string;
+  workingHoursStartPeriod: 'AM' | 'PM';
+  workingHoursEnd: string;
+  workingHoursEndPeriod: 'AM' | 'PM';
   reference: string;
   cnicDocuments: FileList | null; // 2 images max
   previousCnicDocuments: any[] | null;
@@ -132,7 +150,11 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     joinDate: '',
     salary: '',
     salaryType: 'monthly',
-    workingHours: '',
+    workingHours: '09:00 AM - 07:00 PM',
+    workingHoursStart: '09:00',
+    workingHoursStartPeriod: 'AM',
+    workingHoursEnd: '19:00',
+    workingHoursEndPeriod: 'PM',
     reference: '',
     cnicDocuments: null,
     previousCnicDocuments: null,
@@ -174,6 +196,63 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     username: '',
     password: '',
   });
+
+  const formatTimeTo12Hour = (time24: string) => {
+    if (!time24 || typeof time24 !== 'string') return '';
+    const [hourStr, minuteStr] = time24.split(':');
+    if (!hourStr || !minuteStr) return '';
+    const hour = Number(hourStr);
+    const minute = Number(minuteStr);
+    if (Number.isNaN(hour) || Number.isNaN(minute)) return '';
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+    return `${hour12}:${minute.toString().padStart(2, '0')} ${period}`;
+  };
+
+  const getMinutesFromTime = (time: string) => {
+    if (!time || typeof time !== 'string') return null;
+    const [hourStr, minuteStr] = time.split(':');
+    if (!hourStr || !minuteStr) return null;
+    const hour = Number(hourStr);
+    const minute = Number(minuteStr);
+    if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+    return hour * 60 + minute;
+  };
+
+  const getDurationLabel = () => {
+    const startMinutes = getMinutesFromTime(formData.workingHoursStart);
+    const endMinutes = getMinutesFromTime(formData.workingHoursEnd);
+    if (startMinutes === null || endMinutes === null) return '';
+    let duration = endMinutes - startMinutes;
+    if (duration <= 0) duration += 24 * 60;
+    const hours = Math.floor(duration / 60);
+    const minutes = duration % 60;
+    return `${hours}h ${minutes}m`;
+  };
+
+  const getPeriodFromTime = (time24: string) => {
+    if (!time24 || typeof time24 !== 'string') return 'AM';
+    const [hourStr] = time24.split(':');
+    const hour = Number(hourStr);
+    if (Number.isNaN(hour)) return 'AM';
+    return hour >= 12 ? 'PM' : 'AM';
+  };
+
+  const updateWorkingHoursText = (start: string, end: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      workingHours: start && end ? `${formatTimeTo12Hour(start)} - ${formatTimeTo12Hour(end)}` : '',
+      workingHoursStart: start,
+      workingHoursStartPeriod: getPeriodFromTime(start),
+      workingHoursEnd: end,
+      workingHoursEndPeriod: getPeriodFromTime(end),
+    }));
+  };
+
+  const startTime = formatTimeTo12Hour(formData.workingHoursStart);
+  const endTime = formatTimeTo12Hour(formData.workingHoursEnd);
+
+  const phonePrefix = countryPhoneCodeMap[formData.address.country] || '+92';
 
   // Load initial data when editing, reset when adding
   React.useEffect(() => {
@@ -393,6 +472,45 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                 {/* Tab Content - Personal */}
                 {activeTab === 'personal' && (
                   <div className="space-y-6">
+                    <div className="flex flex-col items-center gap-4 py-4 border-b border-slate-200">
+                      <div className="relative w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100">
+                        {formData.profilePhoto || formData.previousProfilePhoto ? (
+                          <img
+                            src={
+                              formData.profilePhoto
+                                ? profilePhotoPreview || undefined
+                                : formData.previousProfilePhoto
+                                  ? `${API_BASE_URL.replace('/api', '')}${formData.previousProfilePhoto}`
+                                  : undefined
+                            }
+                            alt="Profile preview"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-slate-500 text-sm font-medium">
+                            No Photo
+                          </div>
+                        )}
+                      </div>
+                      {!isReadOnly && (
+                        <label className="inline-flex cursor-pointer items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
+                          <span>Choose Profile Photo</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              setFormData({ ...formData, profilePhoto: file });
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                      {formData.profilePhoto && (
+                        <p className="text-sm text-slate-600">Selected: {formData.profilePhoto.name}</p>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -439,110 +557,97 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                           Phone <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="tel"
-                          required
-                          disabled={isReadOnly}
-                          value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="+1 234 567 8900"
-                        />
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-slate-500">
+                            {phonePrefix}
+                          </span>
+                          <input
+                            type="tel"
+                            required
+                            disabled={isReadOnly}
+                            value={formData.phone}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            className="w-full pl-16 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                            placeholder={`${phonePrefix} 234 567 8900`}
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                           WhatsApp Number
                         </label>
-                        <input
-                          type="tel"
-                          disabled={isReadOnly}
-                          value={formData.whatsappNumber}
-                          onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="+1 234 567 8900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Profile Photo
-                        </label>
-                        {!isReadOnly && (
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-slate-500">
+                            {phonePrefix}
+                          </span>
                           <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] || null;
-                              setFormData({ ...formData, profilePhoto: file });
-                            }}
-                            className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            type="tel"
+                            disabled={isReadOnly}
+                            value={formData.whatsappNumber}
+                            onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
+                            className="w-full pl-16 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                            placeholder={`${phonePrefix} 234 567 8900`}
                           />
-                        )}
-                        {formData.profilePhoto && (
-                          <p className="text-sm text-gray-600 mt-1">
-                            Selected: {formData.profilePhoto.name}
-                          </p>
-                        )}
-                        {(editingId || isReadOnly) && formData.previousProfilePhoto && !formData.profilePhoto && (
-                          <div className="mt-3">
-                            <p className="text-sm text-gray-600 mb-2">Current Profile Photo:</p>
-                            <img
-                              src={`${API_BASE_URL.replace('/api', '')}${formData.previousProfilePhoto}`}
-                              alt="Current profile"
-                              className="w-24 h-24 rounded-full object-cover border-2 border-gray-300"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                              }}
-                            />
-                          </div>
-                        )}
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Street Address
+                          Country
                         </label>
-                        <input
-                          type="text"
+                        <Select
                           disabled={isReadOnly}
-                          value={formData.address.street}
-                          onChange={(e) => setFormData({ 
-                            ...formData, 
-                            address: { ...formData.address, street: e.target.value }
-                          })}
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="123 Main St"
+                          value={formData.address.country}
+                          onChange={(value) => {
+                            setFormData({
+                              ...formData,
+                              address: {
+                                ...formData.address,
+                                country: value,
+                                city: '',
+                              },
+                            });
+                          }}
+                          options={[
+                            { value: '', label: 'Select Country' },
+                            ...Object.keys(countryCityMap).map((country) => ({ value: country, label: country })),
+                          ]}
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                           City
                         </label>
-                        <input
-                          type="text"
-                          disabled={isReadOnly}
+                        <Select
+                          disabled={isReadOnly || !formData.address.country}
                           value={formData.address.city}
-                          onChange={(e) => setFormData({ 
-                            ...formData, 
-                            address: { ...formData.address, city: e.target.value }
-                          })}
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="New York"
+                          onChange={(value) =>
+                            setFormData({
+                              ...formData,
+                              address: { ...formData.address, city: value },
+                            })
+                          }
+                          options={[
+                            { value: '', label: 'Select City' },
+                            ...(countryCityMap[formData.address.country] || []).map((city) => ({ value: city, label: city })),
+                          ]}
                         />
                       </div>
-                      <div>
+                      <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Country
+                          Complete Address
                         </label>
-                        <input
-                          type="text"
+                        <textarea
                           disabled={isReadOnly}
-                          value={formData.address.country}
-                          onChange={(e) => setFormData({ 
-                            ...formData, 
-                            address: { ...formData.address, country: e.target.value }
-                          })}
+                          value={formData.address.street}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              address: { ...formData.address, street: e.target.value },
+                            })
+                          }
+                          rows={3}
                           className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="United States"
+                          placeholder="Enter full address, street, building, area and postal code"
                         />
                       </div>
                     </div>
@@ -595,18 +700,51 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                           className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
                         />
                       </div>
-                      <div>
+                      <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                           Working Hours
                         </label>
-                        <input
-                          type="text"
-                          disabled={isReadOnly}
-                          value={formData.workingHours}
-                          onChange={(e) => setFormData({ ...formData, workingHours: e.target.value })}
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
-                          placeholder="9:00 AM - 5:00 PM"
-                        />
+                        <div className="grid gap-6 md:grid-cols-[280px_auto]">
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="text-sm text-slate-700 space-y-3">
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="font-semibold">Start:</span>
+                                <span>{startTime || 'Not set'}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="font-semibold">End:</span>
+                                <span>{endTime || 'Not set'}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="font-semibold">Duration:</span>
+                                <span>{getDurationLabel() || '0h 0m'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">Start Time</label>
+                              <input
+                                type="time"
+                                disabled={isReadOnly}
+                                value={formData.workingHoursStart}
+                                onChange={(e) => updateWorkingHoursText(e.target.value, formData.workingHoursEnd)}
+                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">End Time</label>
+                              <input
+                                type="time"
+                                disabled={isReadOnly}
+                                value={formData.workingHoursEnd}
+                                onChange={(e) => updateWorkingHoursText(formData.workingHoursStart, e.target.value)}
+                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">

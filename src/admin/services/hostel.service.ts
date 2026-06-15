@@ -82,6 +82,19 @@ const mapOwnerHostelToHostel = (item: any): Hostel => {
     managerName: item.manager?.username || item.managerName || '',
     managerPhone: contactInfo.phone || '',
     notes: undefined,
+    amenities: Array.isArray(item.amenities)
+      ? item.amenities
+      : typeof item.amenities === 'string'
+        ? (() => {
+            try {
+              const parsed = JSON.parse(item.amenities);
+              return Array.isArray(parsed) ? parsed : [item.amenities];
+            } catch {
+              return [item.amenities];
+            }
+          })()
+        : [],
+    mapLink: item.mapLink || item.locationMapLink || item.addressMapLink || item.address?.mapLink || undefined,
     category: Array.isArray(item.category) ? item.category.join(', ') : undefined,
     type: Array.isArray(item.type) ? item.type.join(', ') : undefined,
   };
@@ -96,6 +109,8 @@ const mapAdminHostelToHostel = (item: any): Hostel => ({
   managerName: item.manager || '',
   managerPhone: item.phone || '',
   notes: undefined,
+  amenities: Array.isArray(item.amenities) ? item.amenities : [],
+  mapLink: item.mapLink || item.locationMapLink || undefined,
 });
 
 /**
