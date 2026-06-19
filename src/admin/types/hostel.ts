@@ -21,6 +21,10 @@ export interface Hostel {
   mapLink?: string;
   category?: string;
   type?: string;
+  totalBeds?: number;
+  occupiedBeds?: number;
+  availableBeds?: number;
+  vacantRooms?: number;
 }
 
 /**
@@ -53,6 +57,7 @@ export interface HostelStats {
  */
 export interface Seat {
   id: string; // Format: "{floorNumber}-{roomNumber}-{seatLetter}" e.g., "2-01-A"
+  bedId?: number;
   seatNumber: string; // A, B, C, D, etc.
   isOccupied: boolean;
   tenantName?: string; // Name of tenant occupying this seat

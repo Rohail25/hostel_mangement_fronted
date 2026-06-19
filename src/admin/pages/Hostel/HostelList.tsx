@@ -274,6 +274,18 @@ const HostelList: React.FC = () => {
       label: 'Rooms/Block',
     },
     {
+      key: 'totalBeds',
+      label: 'Total Seats',
+    },
+    {
+      key: 'availableBeds',
+      label: 'Vacant Seats',
+    },
+    {
+      key: 'vacantRooms',
+      label: 'Vacant Rooms',
+    },
+    {
       key: 'managerName',
       label: 'Manager',
     },

@@ -31,6 +31,24 @@ const TenantTable: React.FC<TenantTableProps> = ({
   onDelete,
   onTransfer,
 }) => {
+  const formatDate = (value: any) => {
+    if (!value) return 'N/A';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString();
+  };
+
+  const hasValue = (value: any) => value !== undefined && value !== null && value !== '';
+
+  const formatAmount = (value: any) => (hasValue(value) ? value : 'N/A');
+
+  const getEmergencyLabel = (row: any) => {
+    const emergency = row.emergencyContact || row.emergency_contact;
+    if (emergency && typeof emergency === 'object') {
+      return emergency.phone || emergency.whatsappNumber || emergency.name || 'N/A';
+    }
+    return emergency || row.emergencyPhone || row.emergency_phone || row.emergencyContactWhatsapp || 'N/A';
+  };
+
   const columns = [
     {
       key: 'rowNumber',
@@ -48,8 +66,8 @@ const TenantTable: React.FC<TenantTableProps> = ({
           : row.name || 'N/A';
         const fatherName = row.fatherName || row.father_name || row.father || 'N/A';
         const email = row.email || 'N/A';
-        const leaseStart = row.leaseStart || row.lease_start || row.leaseFrom || 'N/A';
-        const leaseEnd = row.leaseEnd || row.lease_end || row.leaseTo || 'N/A';
+        const leaseStart = formatDate(row.leaseStartDate || row.leaseStart || row.lease_start || row.leaseFrom || row.activeAllocation?.checkInDate);
+        const leaseEnd = formatDate(row.leaseEndDate || row.leaseEnd || row.lease_end || row.leaseTo || row.activeAllocation?.expectedCheckOutDate);
 
         return (
           <div className="flex flex-col gap-2">
@@ -96,10 +114,12 @@ const TenantTable: React.FC<TenantTableProps> = ({
       key: 'financials',
       label: 'Rs Rent / Rs Security / Rs Late Fee / Date',
       render: (row: any) => {
-        const rent = row.rent || row.rentAmount || row.monthlyRent || 'N/A';
-        const security = row.security || row.securityAmount || row.deposit || 'N/A';
-        const lateFee = row.lateFee || row.late_fee || row.penalty || 'N/A';
-        const paymentDate = row.paymentDate || row.lastPaymentDate || row.paidAt || row.payment_date || 'N/A';
+        const rent = formatAmount(row.monthlyRent ?? row.activeAllocation?.rentAmount ?? row.rent ?? row.rentAmount);
+        const security = formatAmount(row.securityDeposit ?? row.activeAllocation?.depositAmount ?? row.security ?? row.securityAmount ?? row.deposit);
+        const lateFee = row.lateFeesFine === 'Yes'
+          ? (hasValue(row.lateFeesPercentage) ? `${row.lateFeesPercentage}%` : 'Yes')
+          : (row.lateFeesFine || row.lateFee || row.late_fee || row.penalty || 'N/A');
+        const paymentDate = formatDate(row.lateFeesChargeDate || row.paymentDate || row.lastPaymentDate || row.paidAt || row.payment_date);
 
         return (
           <div className="space-y-1 text-sm text-slate-700">
@@ -121,7 +141,7 @@ const TenantTable: React.FC<TenantTableProps> = ({
             <span>{row.phone || 'No personal phone'}</span>
           </div>
           <div className="text-slate-600">
-            Emergency: {row.emergencyContact || row.emergency_contact || row.emergencyPhone || row.emergency_phone || 'N/A'}
+            Emergency: {getEmergencyLabel(row)}
           </div>
         </div>
       ),
@@ -130,7 +150,7 @@ const TenantTable: React.FC<TenantTableProps> = ({
       key: 'duration',
       label: 'Duration Till Date',
       render: (row: any) => {
-        const leaseStart = new Date(row.leaseStart || row.lease_start || row.leaseFrom || row.lease_from || row.startDate || row.start_date || '');
+        const leaseStart = new Date(row.leaseStartDate || row.leaseStart || row.lease_start || row.leaseFrom || row.lease_from || row.startDate || row.start_date || row.activeAllocation?.checkInDate || '');
         const now = new Date();
         let durationLabel = 'N/A';
 

@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BuildingOfficeIcon,
   XMarkIcon,
-  PlusIcon,
   PencilIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
@@ -23,6 +22,7 @@ interface ArrangeFormProps {
 interface Block {
   id: number;
   floorNumber: number;
+  floorName?: string;
 }
 
 interface Room {
@@ -62,7 +62,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
   }>({ open: false, type: 'success', message: '' });
 
   // Form states
-  const [blockForm, setBlockForm] = useState({ floorNumber: '' });
+  const [blockForm, setBlockForm] = useState({ floorNumber: '', floorName: '' });
   const [roomForm, setRoomForm] = useState({ floorId: '', roomNumber: '', totalBeds: '' });
   const [bedForm, setBedForm] = useState({ roomId: '', bedNumber: '' });
 
@@ -71,13 +71,17 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [editingBed, setEditingBed] = useState<Bed | null>(null);
 
-  useEffect(() => {
-    if (isOpen && hostelId) {
-      loadData();
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error) {
+      const apiError = error as Error & { data?: { message?: string } };
+      return apiError.data?.message || error.message || fallback;
     }
-  }, [isOpen, hostelId]);
 
-  const loadData = async () => {
+    const apiError = error as { data?: { message?: string }; message?: string } | null;
+    return apiError?.data?.message || apiError?.message || fallback;
+  };
+
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -119,7 +123,13 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [bedRoutes, floorRoutes, hostelId, roomRoutes]);
+
+  useEffect(() => {
+    if (isOpen && hostelId) {
+      loadData();
+    }
+  }, [isOpen, hostelId, loadData]);
 
   // Block handlers
   const handleAddBlock = async (e: React.FormEvent) => {
@@ -148,7 +158,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
         hostel: hostelId,
         hostelId,
         floorNumber: floorNumberValue,
-        floorName: `Block ${floorNumberValue}`,
+        floorName: blockForm.floorName.trim() || `Block ${floorNumberValue}`,
       });
 
       if (response.success) {
@@ -157,7 +167,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
           type: 'success',
           message: 'Block added successfully',
         });
-        setBlockForm({ floorNumber: '' });
+        setBlockForm({ floorNumber: '', floorName: '' });
         await loadData();
         if (onSuccess) onSuccess();
       }
@@ -196,7 +206,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
 
       const response = await api.put(floorRoutes.UPDATE(editingBlock.id), {
         floorNumber: floorNumberValue,
-        floorName: `Block ${floorNumberValue}`,
+        floorName: blockForm.floorName.trim() || `Block ${floorNumberValue}`,
       });
 
       if (response.success) {
@@ -206,7 +216,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
           message: 'Block updated successfully',
         });
         setEditingBlock(null);
-        setBlockForm({ floorNumber: '' });
+        setBlockForm({ floorNumber: '', floorName: '' });
         await loadData();
         if (onSuccess) onSuccess();
       }
@@ -234,14 +244,28 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
         });
         await loadData();
         if (onSuccess) onSuccess();
+      } else {
+        setToast({
+          open: true,
+          type: 'error',
+          message: response.message || 'Failed to delete block',
+        });
       }
     } catch (error: any) {
       setToast({
         open: true,
         type: 'error',
-        message: error.message || 'Failed to delete block',
+        message: getErrorMessage(error, 'Failed to delete block'),
       });
     }
+  };
+
+  const startEditBlock = (block: Block) => {
+    setEditingBlock(block);
+    setBlockForm({
+      floorNumber: String(block.floorNumber),
+      floorName: block.floorName || `Block ${block.floorNumber}`,
+    });
   };
 
   // Room handlers
@@ -332,12 +356,18 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
         });
         await loadData();
         if (onSuccess) onSuccess();
+      } else {
+        setToast({
+          open: true,
+          type: 'error',
+          message: response.message || 'Failed to delete room',
+        });
       }
     } catch (error: any) {
       setToast({
         open: true,
         type: 'error',
-        message: error.message || 'Failed to delete room',
+        message: getErrorMessage(error, 'Failed to delete room'),
       });
     }
   };
@@ -425,12 +455,18 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
         });
         await loadData();
         if (onSuccess) onSuccess();
+      } else {
+        setToast({
+          open: true,
+          type: 'error',
+          message: response.message || 'Failed to delete bed',
+        });
       }
     } catch (error: any) {
       setToast({
         open: true,
         type: 'error',
-        message: error.message || 'Failed to delete bed',
+        message: getErrorMessage(error, 'Failed to delete bed'),
       });
     }
   };
@@ -463,7 +499,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
               <div className="p-6 border-b border-slate-700">
                 <div className="flex items-center gap-3">
                   <BuildingOfficeIcon className="w-6 h-6 text-white" />
-                  <h2 className="text-lg font-semibold text-white">Arrange</h2>
+                  <h2 className="text-lg font-semibold text-white">Arrangement</h2>
                 </div>
               </div>
 
@@ -547,10 +583,22 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
                                 type="number"
                                 min="1"
                                 value={blockForm.floorNumber}
-                                onChange={(e) => setBlockForm({ floorNumber: e.target.value })}
+                                onChange={(e) => setBlockForm({ ...blockForm, floorNumber: e.target.value })}
                                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="Enter block number (e.g., 1)"
                                 required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Block Name
+                              </label>
+                              <input
+                                type="text"
+                                value={blockForm.floorName}
+                                onChange={(e) => setBlockForm({ ...blockForm, floorName: e.target.value })}
+                                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Enter block name (e.g., North Block)"
                               />
                             </div>
                             <div className="flex gap-3">
@@ -563,7 +611,7 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
                                   variant="secondary"
                                   onClick={() => {
                                     setEditingBlock(null);
-                                    setBlockForm({ floorNumber: '' });
+                                    setBlockForm({ floorNumber: '', floorName: '' });
                                   }}
                                 >
                                   Cancel
@@ -583,12 +631,14 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
                             ) : (
                               blocks.map((block) => (
                                 <div key={block.id} className="p-4 flex items-center justify-between hover:bg-slate-50">
-                                  <span className="font-medium text-slate-900">Block {block.floorNumber}</span>
+                                  <div>
+                                    <span className="font-medium text-slate-900">Block {block.floorNumber}</span>
+                                    <span className="text-sm text-slate-500 ml-2">{block.floorName || `Block ${block.floorNumber}`}</span>
+                                  </div>
                                   <div className="flex gap-2">
                                     <button
                                       onClick={() => {
-                                        setEditingBlock(block);
-                                        setBlockForm({ floorNumber: String(block.floorNumber) });
+                                        startEditBlock(block);
                                       }}
                                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
                                     >
@@ -829,7 +879,17 @@ export const ArrangeForm: React.FC<ArrangeFormProps> = ({
                                         <PencilIcon className="w-4 h-4" />
                                       </button>
                                       <button
-                                        onClick={() => handleDeleteBed(bed.id)}
+                                        onClick={() => {
+                                          if (bed.status === 'occupied') {
+                                            setToast({
+                                              open: true,
+                                              type: 'warning',
+                                              message: 'Occupied seats cannot be deleted. Vacate the tenant first.',
+                                            });
+                                            return;
+                                          }
+                                          handleDeleteBed(bed.id);
+                                        }}
                                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
                                       >
                                         <TrashIcon className="w-4 h-4" />

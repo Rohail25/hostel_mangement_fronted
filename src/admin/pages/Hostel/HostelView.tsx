@@ -18,7 +18,6 @@ import {
 import tenantsData from '../../mock/tenants.json';
 import employeesData from '../../mock/employees.json';
 import vendorsData from '../../mock/vendors.json';
-import * as messService from '../../services/mess.service';
 import * as messApiService from '../../services/mess-api.service';
 import { Tabs } from '../../components/Tabs';
 import { ArchitectureDiagram } from '../../components/ArchitectureDiagram';
@@ -31,7 +30,7 @@ import { Button } from '../../components/Button';
 import { Toast } from '../../components/Toast';
 import { api } from '../../../services/apiClient';
 import { API_ROUTES, API_BASE_URL } from '../../../services/api.config';
-import type { Hostel, ArchitectureData, RoomFormData } from '../../types/hostel';
+import type { Hostel, ArchitectureData, RoomFormData, MessEntry } from '../../types/hostel';
 import type { ToastType } from '../../types/common';
 import { useAuth } from '../../context/AuthContext';
 import { getRolePrefix } from '../../../components/ProtectedRoute';
@@ -53,40 +52,23 @@ const normalizeAmenities = (amenities: any): string[] => {
   return [];
 };
 
-const getMessMealPattern = (hostelId: string | number) => {
-  const entries = messService.getMessEntriesByHostel(hostelId);
-  if (!entries.length) {
-    return { count: 0, label: 'No mess plan', details: 'Mess plan not configured' };
+const getNaturalSortValue = (value: string | number | undefined | null): number => {
+  if (value === undefined || value === null) return Number.MAX_SAFE_INTEGER;
+  const str = String(value).trim();
+  const match = str.match(/(\d+)/);
+  if (match) {
+    return Number(match[1]);
   }
+  return Number.MAX_SAFE_INTEGER;
+};
 
-  const mealSlots = [
-    { key: 'breakfast', label: 'Breakfast' },
-    { key: 'lunch', label: 'Lunch' },
-    { key: 'dinner', label: 'Dinner' },
-  ] as const;
-
-  const representativeEntry = entries[0];
-  const activeMeals = mealSlots.filter(({ key }) => Array.isArray((representativeEntry as any)[key]?.items) && (representativeEntry as any)[key].items.length > 0);
-  const count = activeMeals.length;
-
-  if (count === 1) {
-    return { count, label: '1 Time', details: 'Breakfast only' };
-  }
-
-  if (count === 2) {
-    const hasLunch = activeMeals.some((meal) => meal.key === 'lunch');
-    return {
-      count,
-      label: '2 Time',
-      details: hasLunch ? 'Breakfast + Lunch' : 'Breakfast + Dinner',
-    };
-  }
-
-  if (count >= 3) {
-    return { count: 3, label: '3 Time', details: 'Breakfast + Lunch + Dinner' };
-  }
-
-  return { count: 0, label: 'No mess plan', details: 'Mess plan not configured' };
+const compareNaturalStrings = (a: string | number, b: string | number): number => {
+  const sa = String(a || '').trim().toUpperCase();
+  const sb = String(b || '').trim().toUpperCase();
+  const na = getNaturalSortValue(sa);
+  const nb = getNaturalSortValue(sb);
+  if (na !== nb) return na - nb;
+  return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: 'base' });
 };
 
 /**
@@ -119,6 +101,7 @@ const HostelView: React.FC = () => {
   const [rooms, setRooms] = useState<any[]>([]);
   const [beds, setBeds] = useState<any[]>([]);
   const [bedsLoading, setBedsLoading] = useState(false);
+  const [messEntries, setMessEntries] = useState<MessEntry[]>([]);
   const [messStats, setMessStats] = useState<{totalMess: number; totalPrice: number; averagePrice: number}>({totalMess: 0, totalPrice: 0, averagePrice: 0});
   const [toast, setToast] = useState<{
     open: boolean;
@@ -138,24 +121,18 @@ const HostelView: React.FC = () => {
     }
 
     const hostelId = hostel.id;
-    
-    // Count mess entries - will be updated via API
-    const messEntries = messService.getMessEntriesByHostel(hostelId);
     const totalMess = messEntries.length;
 
-    // Count vendors for this hostel
     const vendors = (vendorsData as any[]).filter(
       (v) => v.hostelId === hostelId
     );
     const totalVendors = vendors.length;
 
-    // Count employees for this hostel
     const employees = (employeesData as any[]).filter(
       (e) => e.hostelId === hostelId
     );
     const totalEmployees = employees.length;
 
-    // Count tenants for this hostel
     const tenants = (tenantsData as any[]).filter(
       (t) => t.hostelId === hostelId
     );
@@ -167,14 +144,77 @@ const HostelView: React.FC = () => {
       totalEmployees,
       totalTenants,
     };
-  }, [hostel]);
+  }, [hostel, messEntries]);
 
   const messMealPattern = React.useMemo(() => {
-    if (!hostel) {
+    if (!hostel || messEntries.length === 0) {
       return { count: 0, label: 'No mess plan', details: 'Mess plan not configured' };
     }
 
-    return getMessMealPattern(hostel.id);
+    const mealSlots = [
+      { key: 'breakfast', label: 'Breakfast' },
+      { key: 'lunch', label: 'Lunch' },
+      { key: 'dinner', label: 'Dinner' },
+    ] as const;
+
+    const activeMeals = mealSlots.filter(({ key }) =>
+      messEntries.some((entry) =>
+        Array.isArray((entry as any)[key]?.items) && (entry as any)[key].items.length > 0
+      )
+    );
+
+    const count = activeMeals.length;
+    if (count === 1) {
+      const only = activeMeals[0]?.key === 'breakfast' ? 'Breakfast only' : activeMeals[0]?.key === 'lunch' ? 'Lunch only' : 'Dinner only';
+      return { count, label: '1 Time', details: only };
+    }
+
+    if (count === 2) {
+      const hasLunch = activeMeals.some((meal) => meal.key === 'lunch');
+      return {
+        count,
+        label: '2 Time',
+        details: hasLunch ? 'Breakfast + Lunch' : 'Breakfast + Dinner',
+      };
+    }
+
+    if (count >= 3) {
+      return { count: 3, label: '3 Time', details: 'Breakfast + Lunch + Dinner' };
+    }
+
+    return { count: 0, label: 'No mess plan', details: 'Mess plan not configured' };
+  }, [hostel, messEntries]);
+
+  // Vacant rooms: rooms where none of the seats are occupied
+  const vacantRooms = React.useMemo(() => {
+    if (!architectureData) return 0;
+    return architectureData.floors.reduce((sum, floor) => {
+      const vacant = floor.rooms.filter((r) => r.seats.every((s) => !s.isOccupied)).length;
+      return sum + vacant;
+    }, 0);
+  }, [architectureData]);
+
+  // Determine access badges (Manager / Accountant / Staff) from mock employees data
+  const accessList = React.useMemo(() => {
+    if (!hostel) return [] as Array<{ role: string; name: string }>;
+    const hid = Number(hostel.id);
+    const emps = (employeesData as any[]).filter((e) => Number(e.hostelId) === hid);
+    const list: Array<{ role: string; name: string }> = [];
+
+    const manager = emps.find((e) => /manager/i.test(e.role));
+    if (manager) list.push({ role: 'Manager', name: manager.name });
+
+    const accountant = emps.find((e) => /accountant/i.test(e.role));
+    if (accountant) list.push({ role: 'Accountant', name: accountant.name });
+
+    // Collect first few staff-like roles
+    const staffMatches = emps.filter((e) => /staff|housekeeping|associate|front desk|security|maintenance/i.test(e.role));
+    if (staffMatches.length) {
+      // push up to 3 staff entries as 'Staff'
+      staffMatches.slice(0, 3).forEach((s) => list.push({ role: 'Staff', name: s.name }));
+    }
+
+    return list;
   }, [hostel]);
 
   useEffect(() => {
@@ -262,12 +302,16 @@ const HostelView: React.FC = () => {
       // Load beds with tenant data
       await loadBedsWithTenants(hostelId);
       
-      // Load mess stats from API
+      // Load mess entries and stats from API
       try {
-        const stats = await messApiService.getMessStatsAPI(hostelId);
+        const [entries, stats] = await Promise.all([
+          messApiService.getMessEntriesByHostelAPI(hostelId),
+          messApiService.getMessStatsAPI(hostelId),
+        ]);
+        setMessEntries(entries);
         setMessStats(stats);
       } catch (error) {
-        console.error('Error loading mess stats:', error);
+        console.error('Error loading mess data:', error);
       }
       
     } catch (error: any) {
@@ -285,6 +329,7 @@ const HostelView: React.FC = () => {
   const loadBedsWithTenants = async (hostelId: number) => {
     try {
       setBedsLoading(true);
+      const currentHostelId = Number(hostelId || id || hostel?.id || 0);
       // Fetch all beds for this hostel through rooms
       const bedsData: any[] = [];
       
@@ -295,77 +340,74 @@ const HostelView: React.FC = () => {
         : [];
       
       // Fetch beds for each room with tenant information
+      // Fetch active allocations for the hostel once to avoid per-bed queries
+      let allocationsForHostel: any[] = [];
+      try {
+        const allocResp = await api.get(`/admin/allocations/hostel/${hostelId}/active`);
+        if (allocResp.success && allocResp.data) {
+          allocationsForHostel = Array.isArray(allocResp.data) ? allocResp.data : allocResp.data.allocations || [];
+        }
+      } catch (err) {
+        console.error('Error loading active allocations for hostel:', err);
+        allocationsForHostel = [];
+      }
       for (const room of roomsData) {
         try {
           const bedsResponse = await api.get(bedRoutes.BEDS_BY_ROOM(room.id));
           if (bedsResponse.success && bedsResponse.data) {
-            const roomBeds = Array.isArray(bedsResponse.data) ? bedsResponse.data : bedsResponse.data.items || [];
+            let roomBeds = Array.isArray(bedsResponse.data) ? bedsResponse.data : bedsResponse.data.items || [];
+            roomBeds = roomBeds.sort((a: any, b: any) => compareNaturalStrings(a.bedNumber || a.number || '', b.bedNumber || b.number || ''));
             
-            // For each bed, try to get tenant information if occupied
-            for (const bed of roomBeds) {
-              let tenantInfo = null;
-              let leaseInfo = null;
-              
-              // Use currentTenant from bed response (User object)
-              if (bed.currentTenant) {
-                tenantInfo = {
-                  name: bed.currentTenant.username || bed.currentTenant.email || 'Unknown',
-                  id: bed.currentTenantId,
-                };
-              }
-              
-              // Try to get allocation/tenant details if currentTenantId exists
-              if (bed.currentTenantId) {
-                try {
-                  // Get active allocation for this bed/user
-                  const allocationResponse = await api.get(`/admin/allocations?userId=${bed.currentTenantId}&status=active`);
-                  if (allocationResponse.success && allocationResponse.data) {
-                    const allocations = Array.isArray(allocationResponse.data) 
-                      ? allocationResponse.data 
-                      : allocationResponse.data.items || [];
-                    const activeAllocation = allocations.find((a: any) => a.bedId === bed.id);
-                    
-                    if (activeAllocation) {
-                      // Get tenant details from allocation
-                      if (activeAllocation.tenantId) {
-                        const tenantResponse = await api.get(`/admin/tenants/${activeAllocation.tenantId}`);
-                        if (tenantResponse.success && tenantResponse.data) {
-                          tenantInfo = {
-                            name: tenantResponse.data.name || tenantInfo?.name,
-                            id: tenantResponse.data.id,
-                          };
-                          leaseInfo = {
-                            startDate: tenantResponse.data.leaseStart || tenantResponse.data.lease?.startDate,
-                            endDate: tenantResponse.data.leaseEnd || tenantResponse.data.lease?.endDate,
-                            rent: tenantResponse.data.monthlyRent || tenantResponse.data.lease?.monthlyRent,
-                          };
-                        }
-                      }
+                  // We'll use pre-fetched active allocations for this hostel (if available)
+                  for (const bed of roomBeds) {
+                    let tenantInfo = null;
+                    let leaseInfo = null;
+                    let activeAllocation: { id?: number; tenantId?: number; bedId?: number } | null = null;
+
+                    // Try to find an active allocation for this bed from allocationsForHostel map
+                    if (allocationsForHostel && allocationsForHostel.length) {
+                      activeAllocation = allocationsForHostel.find((a: any) => a.bedId === bed.id) || null;
                     }
+
+                    // Prefer tenant info from allocation if present
+                    if (activeAllocation && activeAllocation.tenant) {
+                      tenantInfo = { name: activeAllocation.tenant.name || null, id: activeAllocation.tenant.id };
+                      leaseInfo = { startDate: activeAllocation.checkInDate, endDate: activeAllocation.expectedCheckOutDate, rent: activeAllocation.rentAmount || activeAllocation.rent };
+                    } else if (bed.currentTenant) {
+                      tenantInfo = {
+                        name: bed.currentTenant.username || bed.currentTenant.email || 'Unknown',
+                        id: bed.currentTenantId,
+                      };
+                    }
+
+                    bedsData.push({
+                      ...bed,
+                      allocationId: activeAllocation?.id,
+                      tenantId: activeAllocation?.tenantId || bed.currentTenantId || bed.tenantId,
+                      roomId: room.id,
+                      roomNumber: room.roomNumber,
+                      floorId: room.floorId,
+                      hostelId: currentHostelId,
+                      currentTenant: tenantInfo || bed.currentTenant,
+                      tenantName: tenantInfo?.name || bed.currentTenant?.name || bed.currentTenant?.username || bed.currentTenant?.email || bed.tenantName,
+                      rent: leaseInfo?.rent,
+                      leaseStartDate: leaseInfo?.startDate,
+                      leaseEndDate: leaseInfo?.endDate,
+                    });
                   }
-                } catch (err) {
-                  console.error(`Error loading tenant details for bed ${bed.id}:`, err);
-                }
-              }
-              
-              bedsData.push({
-                ...bed,
-                roomId: room.id,
-                roomNumber: room.roomNumber,
-                floorId: room.floorId,
-                currentTenant: tenantInfo || bed.currentTenant,
-                tenantName: tenantInfo?.name || bed.currentTenant?.username || bed.currentTenant?.email,
-                leaseStartDate: leaseInfo?.startDate,
-                leaseEndDate: leaseInfo?.endDate,
-                rent: leaseInfo?.rent,
-              });
-            }
           }
         } catch (err) {
           console.error(`Error loading beds for room ${room.id}:`, err);
         }
       }
       
+      bedsData.sort((a, b) => {
+        const floorComparison = Number(a.floorNumber || 0) - Number(b.floorNumber || 0);
+        if (floorComparison !== 0) return floorComparison;
+        const roomComparison = compareNaturalStrings(a.roomNumber, b.roomNumber);
+        if (roomComparison !== 0) return roomComparison;
+        return compareNaturalStrings(a.bedNumber || a.number || '', b.bedNumber || b.number || '');
+      });
       setBeds(bedsData);
     } catch (error: any) {
       console.error('Error loading beds:', error);
@@ -388,32 +430,74 @@ const HostelView: React.FC = () => {
       const roomsData = roomsResponse.success && roomsResponse.data
         ? (Array.isArray(roomsResponse.data) ? roomsResponse.data : roomsResponse.data.items || [])
         : [];
-      setRooms(roomsData);
+      const sortedRoomsData = roomsData.sort((a: any, b: any) => compareNaturalStrings(a.roomNumber, b.roomNumber));
+      setRooms(sortedRoomsData);
+
+      // Load beds for each room so architecture reflects actual created seats
+      const bedsByRoom = new Map<string, any[]>();
+      await Promise.all(
+        roomsData.map(async (room: any) => {
+          try {
+            const bedsResponse = await api.get(bedRoutes.BEDS_BY_ROOM(room.id));
+            const roomBeds = bedsResponse.success && bedsResponse.data
+              ? (Array.isArray(bedsResponse.data) ? bedsResponse.data : bedsResponse.data.items || [])
+              : [];
+            bedsByRoom.set(String(room.id), roomBeds);
+          } catch (err) {
+            console.error(`Error loading beds for room ${room.id}:`, err);
+            bedsByRoom.set(String(room.id), []);
+          }
+        })
+      );
 
       // Transform backend data to ArchitectureData format
       const transformedFloors: import('../../types/hostel').Floor[] = floorsData.map((floor: any) => {
-        const floorRooms = roomsData.filter((room: any) => room.floorId === floor.id);
+        const floorRooms = sortedRoomsData
+          .filter((room: any) => room.floorId === floor.id)
+          .sort((a: any, b: any) => compareNaturalStrings(a.roomNumber, b.roomNumber));
         return {
           floorNumber: floor.floorNumber,
-          rooms: floorRooms.map((room: any) => ({
-            id: String(room.id),
-            floorNumber: floor.floorNumber,
-            roomNumber: room.roomNumber,
-            totalSeats: room.totalBeds || 0,
-            seats: Array.from({ length: room.totalBeds || 0 }, (_, i) => ({
-              id: `${floor.floorNumber}-${room.roomNumber}-${String.fromCharCode(65 + i)}`,
-              seatNumber: String.fromCharCode(65 + i),
-              isOccupied: false, // TODO: Check bed occupancy from backend
-              tenantName: undefined,
-              tenantId: undefined,
-            })),
-          })),
+          rooms: floorRooms.map((room: any) => {
+            const roomBeds = (bedsByRoom.get(String(room.id)) || []).sort((a: any, b: any) =>
+              compareNaturalStrings(a.bedNumber || a.number || '', b.bedNumber || b.number || '')
+            );
+            return {
+              id: String(room.id),
+              floorNumber: floor.floorNumber,
+              roomNumber: room.roomNumber,
+              totalSeats: roomBeds.length,
+              seats: roomBeds.map((bed: any, index: number) => ({
+                id: String(bed.id || `${floor.floorNumber}-${room.roomNumber}-${index + 1}`),
+                bedId: Number(bed.id),
+                seatNumber: String(bed.bedNumber || bed.number || `S${index + 1}`),
+                isOccupied: Boolean(
+                  bed.status === 'occupied' ||
+                  bed.currentTenant ||
+                  bed.currentTenantId ||
+                  bed.tenantName ||
+                  bed.tenantId
+                ),
+                tenantName: bed.currentTenant?.name || bed.currentTenant?.username || bed.currentTenant?.email || bed.tenantName || undefined,
+                tenantId: bed.currentTenantId || bed.tenantId || undefined,
+              })),
+            };
+          }),
         };
       });
 
       const totalRooms = roomsData.length;
-      const totalSeats = roomsData.reduce((sum: number, room: any) => sum + (room.totalBeds || 0), 0);
-      const occupiedSeats = 0; // TODO: Calculate from bed occupancy
+      const totalSeats = transformedFloors.reduce(
+        (sum, floor) => sum + floor.rooms.reduce((roomSum, room) => roomSum + room.seats.length, 0),
+        0
+      );
+      const occupiedSeats = transformedFloors.reduce(
+        (sum, floor) =>
+          sum + floor.rooms.reduce(
+            (roomSum, room) => roomSum + room.seats.filter((seat) => seat.isOccupied).length,
+            0
+          ),
+        0
+      );
 
       setArchitectureData({
         hostelId,
@@ -541,6 +625,7 @@ const HostelView: React.FC = () => {
         
         // Reload architecture data to reflect the new bed
         await loadArchitectureData(Number(id));
+        await loadBedsWithTenants(Number(id));
       } else {
         throw new Error(response.message || 'Failed to create bed');
       }
@@ -550,6 +635,52 @@ const HostelView: React.FC = () => {
         open: true,
         type: 'error',
         message: error.message || 'Failed to add bed',
+      });
+    }
+  };
+
+  const handleDeleteSeat = async (bedId: number) => {
+    if (!architectureData || !hostel || !id) return;
+
+    const bed = beds.find((item) => item.id === bedId);
+    const hasTenantDetails = Boolean(
+      bed?.status === 'occupied' ||
+      bed?.currentTenant ||
+      bed?.currentTenantId ||
+      bed?.tenantName ||
+      bed?.leaseStartDate ||
+      bed?.leaseEndDate
+    );
+
+    if (hasTenantDetails) {
+      setToast({
+        open: true,
+        type: 'warning',
+        message: 'This seat cannot be deleted because tenant details exist. Remove the tenant allocation first.',
+      });
+      return;
+    }
+
+    if (!window.confirm('Delete this empty seat?')) {
+      return;
+    }
+
+    try {
+      const response = await api.delete(bedRoutes.DELETE(bedId));
+      if (response.success) {
+        setToast({
+          open: true,
+          type: 'success',
+          message: 'Empty seat deleted successfully',
+        });
+        await loadArchitectureData(Number(id));
+        await loadBedsWithTenants(Number(id));
+      }
+    } catch (error: any) {
+      setToast({
+        open: true,
+        type: 'error',
+        message: error.message || 'Failed to delete seat',
       });
     }
   };
@@ -706,6 +837,36 @@ const HostelView: React.FC = () => {
               </div>
             </div>
 
+            {/* Access Badges (Manager / Accountant / Staff) */}
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-rose-100 rounded-lg">
+                <UserGroupIcon className="w-6 h-6 text-rose-600" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-600 font-medium">Access</p>
+                <div className="flex items-center mt-1 gap-2">
+                  {accessList.length === 0 ? (
+                    <p className="text-sm text-slate-500">No access assigned</p>
+                  ) : (
+                    accessList.slice(0, 6).map((a, idx) => (
+                      <div
+                        key={idx}
+                        title={`${a.name} — ${a.role}`}
+                        className="w-8 h-8 bg-slate-100 rounded-sm flex items-center justify-center text-xs font-semibold text-slate-800 border"
+                      >
+                        {a.name
+                          .split(' ')
+                          .map((p) => p[0])
+                          .join('')
+                          .substring(0, 2)
+                          .toUpperCase()}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Total Blocks */}
             <div className="flex items-start gap-4">
               <div className="p-3 bg-indigo-100 rounded-lg">
@@ -827,6 +988,10 @@ const HostelView: React.FC = () => {
                   {architectureData.availableSeats}
                 </p>
               </div>
+                <div className="bg-amber-50 p-4 rounded-xl">
+                  <p className="text-sm text-amber-600 font-medium">Vacant Rooms</p>
+                  <p className="text-2xl font-bold text-amber-900 mt-1">{vacantRooms}</p>
+                </div>
               <div className="bg-red-50 p-4 rounded-xl">
                 <p className="text-sm text-red-600 font-medium">
                   Occupied Seats
@@ -842,6 +1007,59 @@ const HostelView: React.FC = () => {
                 </p>
               </div>
             </div>
+
+              {/* Quick overview icons
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                  <div className="p-2 bg-blue-50 rounded-md">
+                    <BuildingOfficeIcon className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-600">Rooms</p>
+                    <p className="text-sm font-semibold text-slate-900">{architectureData.totalRooms}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                  <div className="p-2 bg-slate-50 rounded-md">
+                    <UserGroupIcon className="w-5 h-5 text-slate-700" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-600">Seats</p>
+                    <p className="text-sm font-semibold text-slate-900">{architectureData.totalSeats}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                  <div className="p-2 bg-green-50 rounded-md">
+                    <UserGroupIcon className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-600">Vacant Seats</p>
+                    <p className="text-sm font-semibold text-slate-900">{architectureData.availableSeats}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                  <div className="p-2 bg-amber-50 rounded-md">
+                    <BuildingOfficeIcon className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-600">Vacant Rooms</p>
+                    <p className="text-sm font-semibold text-slate-900">{vacantRooms}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                  <div className="p-2 bg-amber-100 rounded-md">
+                    <ClockIcon className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-600">Mess</p>
+                    <p className="text-sm font-semibold text-slate-900">{messMealPattern.label} ({messMealPattern.details})</p>
+                  </div>
+                </div>
+              </div> */}
           </div>
 
           {/* Additional Stats Cards */}
@@ -946,6 +1164,7 @@ const HostelView: React.FC = () => {
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Block</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Block Name</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Room</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Bed</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">Status</th>
@@ -967,12 +1186,21 @@ const HostelView: React.FC = () => {
                     beds.map((bed: any) => {
                       const floor = floors.find((f: any) => f.id === bed.floorId);
                       const room = rooms.find((r: any) => r.id === bed.roomId);
-                      const isOccupied = bed.status === 'occupied' && bed.currentTenant;
+                      const isOccupied = Boolean(
+                        bed.status === 'occupied' ||
+                        bed.currentTenant ||
+                        bed.currentTenantId ||
+                        bed.tenantName ||
+                        bed.tenantId
+                      );
                       
                       return (
                         <tr key={bed.id} className={isOccupied ? 'bg-blue-50' : ''}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                             {floor ? `Block ${floor.floorNumber}` : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                            {floor ? `${floor.floorName}` : '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                             {room ? `Room ${room.roomNumber}` : bed.roomNumber || '-'}
@@ -990,7 +1218,7 @@ const HostelView: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                            {bed.currentTenant?.name || bed.tenantName || '-'}
+                            {bed.currentTenant?.name || bed.currentTenant?.username || bed.currentTenant?.email || bed.tenantName || '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                             {bed.leaseStartDate ? new Date(bed.leaseStartDate).toLocaleDateString() : '-'}
@@ -1007,10 +1235,14 @@ const HostelView: React.FC = () => {
                                 onClick={() => {
                                   setEditingBed({
                                     id: bed.id,
+                                    allocationId: bed.allocationId,
+                                    tenantId: bed.tenantId,
+                                    hostelId: Number(id || hostel.id),
                                     floorId: bed.floorId,
                                     roomId: bed.roomId,
                                     bedNumber: bed.bedNumber || bed.number,
                                     tenantName: bed.currentTenant?.name || bed.tenantName,
+                                    rent: bed.rent,
                                   });
                                   setIsEditAllocationOpen(true);
                                 }}
@@ -1089,8 +1321,8 @@ const HostelView: React.FC = () => {
                 <div className="w-0.5 h-6 bg-slate-400"></div>
               </div>
 
-              {/* Level 1: Blocks (Teal) - Vertical Stack */}
-              <div className="space-y-8">
+              {/* Level 1: Blocks (Teal) - Horizontal Row */}
+              <div className="flex flex-wrap justify-center gap-8">
                 {architectureData.floors.map((floor) => (
                   <div key={floor.floorNumber} className="flex flex-col items-center">
                     {/* Block Node (Teal) */}
@@ -1139,11 +1371,6 @@ const HostelView: React.FC = () => {
                         </div>
                       ))}
                     </div>
-
-                    {/* Separator between blocks */}
-                    {floor.floorNumber < architectureData.floors.length && (
-                      <div className="w-full h-0.5 bg-slate-200 my-4"></div>
-                    )}
                   </div>
                 ))}
               </div>
@@ -1176,6 +1403,7 @@ const HostelView: React.FC = () => {
           <ArchitectureDiagram 
             data={architectureData} 
             onAddSeat={handleAddSeat}
+            onDeleteSeat={handleDeleteSeat}
             onRoomClick={handleRoomClick}
           />
         </motion.div>
@@ -1230,13 +1458,17 @@ const HostelView: React.FC = () => {
             setEditingBed(null);
           }}
           bedId={editingBed.id}
+          allocationId={editingBed.allocationId}
           currentAllocation={{
+            hostelId: editingBed.hostelId,
             floorId: editingBed.floorId,
             roomId: editingBed.roomId,
             bedNumber: editingBed.bedNumber,
+            tenantId: editingBed.tenantId,
             tenantName: editingBed.tenantName,
+            rent: editingBed.rent,
           }}
-          hostelId={Number(id || hostel.id)}
+          hostelId={Number(id || hostel?.id || 0)}
           onSuccess={async () => {
             setToast({
               open: true,

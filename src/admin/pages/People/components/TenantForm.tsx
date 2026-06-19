@@ -11,12 +11,20 @@ import {
   BriefcaseIcon,
   ExclamationTriangleIcon,
   HomeIcon,
+  TruckIcon,
   XMarkIcon,
   PlusIcon
 } from '@heroicons/react/24/outline';
 import { API_BASE_URL } from '../../../../services/api.config';
 import * as tenantService from '../../../services/tenant.service';
 import { AddHostelForm } from '../../../components/AddHostelForm';
+
+const countryCityMap: Record<string, string[]> = {
+  Pakistan: ['Islamabad', 'Lahore', 'Karachi', 'Peshawar', 'Quetta', 'Multan'],
+  'United States': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Miami'],
+  India: ['Delhi', 'Mumbai', 'Bangalore', 'Hyderabad', 'Chennai'],
+  'United Kingdom': ['London', 'Manchester', 'Liverpool', 'Birmingham', 'Leeds'],
+};
 
 interface TenantDocument {
   field?: string;
@@ -46,6 +54,11 @@ interface TenantFormData {
   attachments: FileList | null;
   previousProfilePhoto: string | null;
   previousAttachments: TenantDocument[] | null;
+  address: {
+    street: string;
+    city: string;
+    country: string;
+  };
   
   // Professional
   professionType: string; // student, job, business
@@ -92,6 +105,13 @@ interface TenantFormData {
   nearestRelativeWhatsappLocal: string;
   nearestRelativeRelation: string;
   nearestRelativeRelationOther: string;
+
+  // Vehicle/Bike Detail
+  vehicleParkingStatus: string;
+  vehicleType: string;
+  vehicleNumberPlate: string;
+  vehicleRegistrationNumber: string;
+  vehicleColor: string;
   
   // Hostel Info
   hostelId: string;
@@ -173,7 +193,20 @@ const formatPhoneField = (countryCode: string, localNumber: string) => {
   return `${countryCode} ${localNumber}`.trim();
 };
 
-type ActiveTab = 'personal' | 'professional' | 'emergency' | 'hostel';
+const vehicleParkingOptions = [
+  { value: 'parked', label: 'Parked in Hostel' },
+  { value: 'not_parked', label: 'Not Parked in Hostel' },
+];
+
+const vehicleTypeOptions = [
+  { value: 'bike', label: 'Bike' },
+  { value: 'car', label: 'Car' },
+  { value: 'scooter', label: 'Scooter' },
+  { value: 'van', label: 'Van' },
+  { value: 'other', label: 'Other' },
+];
+
+type ActiveTab = 'personal' | 'professional' | 'emergency' | 'hostel' | 'vehicle';
 
 const TenantForm: React.FC<TenantFormProps> = ({
   isOpen,
@@ -212,6 +245,11 @@ const TenantForm: React.FC<TenantFormProps> = ({
     attachments: null,
     previousProfilePhoto: null,
     previousAttachments: null,
+    address: {
+      street: '',
+      city: '',
+      country: '',
+    },
     professionType: '',
     academicName: '',
     academicAddress: '',
@@ -249,6 +287,11 @@ const TenantForm: React.FC<TenantFormProps> = ({
     nearestRelativeWhatsappLocal: '',
     nearestRelativeRelation: '',
     nearestRelativeRelationOther: '',
+    vehicleParkingStatus: '',
+    vehicleType: '',
+    vehicleNumberPlate: '',
+    vehicleRegistrationNumber: '',
+    vehicleColor: '',
     hostelId: '',
     floorId: '',
     roomId: '',
@@ -308,6 +351,11 @@ const TenantForm: React.FC<TenantFormProps> = ({
         attachments: null,
         previousProfilePhoto: null,
         previousAttachments: null,
+        address: {
+          street: '',
+          city: '',
+          country: '',
+        },
         professionType: '',
         academicName: '',
         academicAddress: '',
@@ -345,6 +393,11 @@ const TenantForm: React.FC<TenantFormProps> = ({
         nearestRelativeWhatsappLocal: '',
         nearestRelativeRelation: '',
         nearestRelativeRelationOther: '',
+        vehicleParkingStatus: '',
+        vehicleType: '',
+        vehicleNumberPlate: '',
+        vehicleRegistrationNumber: '',
+        vehicleColor: '',
         hostelId: '',
         floorId: '',
         roomId: '',
@@ -493,6 +546,8 @@ const TenantForm: React.FC<TenantFormProps> = ({
       setActiveTab('emergency');
     } else if (activeTab === 'emergency') {
       setActiveTab('hostel');
+    } else if (activeTab === 'hostel') {
+      setActiveTab('vehicle');
     }
   };
 
@@ -655,6 +710,17 @@ const TenantForm: React.FC<TenantFormProps> = ({
                 <HomeIcon className="w-5 h-5" />
                 <span className="font-medium">Hostel Info</span>
               </button>
+              <button
+                onClick={() => setActiveTab('vehicle')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  activeTab === 'vehicle'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                }`}
+              >
+                <TruckIcon className="w-5 h-5" />
+                <span className="font-medium">Vehicle/Bike Detail</span>
+              </button>
             </div>
           </div>
 
@@ -668,6 +734,7 @@ const TenantForm: React.FC<TenantFormProps> = ({
                   {activeTab === 'professional' && 'PROFESSIONAL'}
                   {activeTab === 'emergency' && 'EMERGENCY'}
                   {activeTab === 'hostel' && 'HOSTEL INFO'}
+                  {activeTab === 'vehicle' && 'VEHICLE/BIKE DETAIL'}
                 </h3>
                 <span className="block w-12 h-1 bg-pink-500 mt-1" />
               </div>
@@ -804,6 +871,66 @@ const TenantForm: React.FC<TenantFormProps> = ({
                           onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
                           className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
                           placeholder="Source of referral"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Country
+                        </label>
+                        <Select
+                          disabled={isReadOnly}
+                          value={formData.address.country}
+                          onChange={(value) => {
+                            setFormData({
+                              ...formData,
+                              address: {
+                                ...formData.address,
+                                country: value,
+                                city: '',
+                              },
+                            });
+                          }}
+                          options={[
+                            { value: '', label: 'Select Country' },
+                            ...Object.keys(countryCityMap).map((country) => ({ value: country, label: country })),
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          City
+                        </label>
+                        <Select
+                          disabled={isReadOnly || !formData.address.country}
+                          value={formData.address.city}
+                          onChange={(value) =>
+                            setFormData({
+                              ...formData,
+                              address: { ...formData.address, city: value },
+                            })
+                          }
+                          options={[
+                            { value: '', label: 'Select City' },
+                            ...(countryCityMap[formData.address.country] || []).map((city) => ({ value: city, label: city })),
+                          ]}
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Complete Address
+                        </label>
+                        <textarea
+                          disabled={isReadOnly}
+                          value={formData.address.street}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              address: { ...formData.address, street: e.target.value },
+                            })
+                          }
+                          rows={3}
+                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                          placeholder="Enter full address, street, building, area and postal code"
                         />
                       </div>
                       <div>
@@ -1876,6 +2003,77 @@ const TenantForm: React.FC<TenantFormProps> = ({
                     )}
                   </div>
                 )}
+
+                {/* Tab Content - Vehicle/Bike Detail */}
+                {activeTab === 'vehicle' && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Parking Status
+                        </label>
+                        <Select
+                          value={formData.vehicleParkingStatus}
+                          onChange={(value) => setFormData({ ...formData, vehicleParkingStatus: value })}
+                          options={vehicleParkingOptions}
+                          placeholder="Select parking status..."
+                          disabled={isReadOnly}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Vehicle Type
+                        </label>
+                        <Select
+                          value={formData.vehicleType}
+                          onChange={(value) => setFormData({ ...formData, vehicleType: value })}
+                          options={vehicleTypeOptions}
+                          placeholder="Select vehicle..."
+                          disabled={isReadOnly}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Number Plate
+                        </label>
+                        <input
+                          type="text"
+                          disabled={isReadOnly}
+                          value={formData.vehicleNumberPlate}
+                          onChange={(e) => setFormData({ ...formData, vehicleNumberPlate: e.target.value })}
+                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                          placeholder="ABC-1234"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Registration Number
+                        </label>
+                        <input
+                          type="text"
+                          disabled={isReadOnly}
+                          value={formData.vehicleRegistrationNumber}
+                          onChange={(e) => setFormData({ ...formData, vehicleRegistrationNumber: e.target.value })}
+                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                          placeholder="Registration number"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          Color
+                        </label>
+                        <input
+                          type="text"
+                          disabled={isReadOnly}
+                          value={formData.vehicleColor}
+                          onChange={(e) => setFormData({ ...formData, vehicleColor: e.target.value })}
+                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500"
+                          placeholder="Black"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer Buttons */}
@@ -1887,7 +2085,7 @@ const TenantForm: React.FC<TenantFormProps> = ({
                 >
                   {isReadOnly ? 'Close' : 'Cancel'}
                 </button>
-                {activeTab !== 'hostel' ? (
+                {activeTab !== 'vehicle' ? (
                   <button
                     type="button"
                     onClick={handleNext}

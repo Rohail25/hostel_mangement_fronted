@@ -72,6 +72,9 @@ const mapOwnerHostelToHostel = (item: any): Hostel => {
   const roomsPerFloor = totalFloors > 0 ? Math.round(totalRooms / totalFloors) : totalRooms || 0;
   const contactInfo = item.contactInfo || {};
   const city = getCityFromAddress(item.address) || 'N/A';
+  const totalBeds = Number(item.totalBeds || 0);
+  const occupiedBeds = Number(item.occupiedBeds || 0);
+  const availableBeds = Math.max(totalBeds - occupiedBeds, 0);
 
   return {
     id: String(item.id),
@@ -97,6 +100,9 @@ const mapOwnerHostelToHostel = (item: any): Hostel => {
     mapLink: item.mapLink || item.locationMapLink || item.addressMapLink || item.address?.mapLink || undefined,
     category: Array.isArray(item.category) ? item.category.join(', ') : undefined,
     type: Array.isArray(item.type) ? item.type.join(', ') : undefined,
+    totalBeds,
+    occupiedBeds,
+    availableBeds,
   };
 };
 
@@ -111,6 +117,10 @@ const mapAdminHostelToHostel = (item: any): Hostel => ({
   notes: undefined,
   amenities: Array.isArray(item.amenities) ? item.amenities : [],
   mapLink: item.mapLink || item.locationMapLink || undefined,
+  totalBeds: Number(item.totalBeds || 0),
+  occupiedBeds: Number(item.occupiedBeds || 0),
+  availableBeds: Math.max(Number(item.totalBeds || 0) - Number(item.occupiedBeds || 0), 0),
+  vacantRooms: Number(item.vacantRooms || 0),
 });
 
 /**

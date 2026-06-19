@@ -328,7 +328,8 @@ const PeopleHub: React.FC = () => {
           // Map API response to display format
           const mappedData = {
             id: tenantData.id,
-            name: tenantData.name,
+            name: tenantData.fullName || tenantData.name,
+            fatherName: tenantData.fatherName || tenantData.father_name || tenantData.father || tenantData.lastName || '',
             firstName: tenantData.firstName,
             lastName: tenantData.lastName,
             email: tenantData.email,
@@ -339,6 +340,11 @@ const PeopleHub: React.FC = () => {
             status: tenantData.status,
             profilePhoto: tenantData.profilePhoto,
             cnicNumber: tenantData.cnicNumber,
+            vehicleParkingStatus: tenantData.vehicleParkingStatus,
+            vehicleType: tenantData.vehicleType,
+            vehicleNumberPlate: tenantData.vehicleNumberPlate,
+            vehicleRegistrationNumber: tenantData.vehicleRegistrationNumber,
+            vehicleColor: tenantData.vehicleColor,
             monthlyRent: tenantData.monthlyRent,
             securityDeposit: tenantData.securityDeposit,
             leaseStartDate: tenantData.leaseStartDate,
@@ -477,6 +483,9 @@ const PeopleHub: React.FC = () => {
           const nearestRelative = typeof tenantData.nearestRelative === 'string'
             ? JSON.parse(tenantData.nearestRelative)
             : tenantData.nearestRelative || {};
+          const address = typeof tenantData.address === 'string'
+            ? JSON.parse(tenantData.address)
+            : tenantData.address || {};
             
           setTenantFormData({
             fullName: tenantData.fullName || tenantData.firstName || tenantData.name || '',
@@ -494,6 +503,11 @@ const PeopleHub: React.FC = () => {
             previousProfilePhoto: tenantData.profilePhoto || null,
             attachments: null,
             previousAttachments: tenantData.attachments || null,
+            address: {
+              street: address.street || address.line1 || '',
+              city: address.city || '',
+              country: address.country || '',
+            },
             professionType: tenantData.professionType || '',
             academicName: tenantData.academicName || '',
             academicAddress: tenantData.academicAddress || '',
@@ -523,6 +537,11 @@ const PeopleHub: React.FC = () => {
             nearestRelativeWhatsapp: nearestRelative.whatsappNumber || '',
             nearestRelativeRelation: nearestRelative.relation || '',
             nearestRelativeRelationOther: nearestRelative.relationOther || '',
+            vehicleParkingStatus: tenantData.vehicleParkingStatus || '',
+            vehicleType: tenantData.vehicleType || '',
+            vehicleNumberPlate: tenantData.vehicleNumberPlate || '',
+            vehicleRegistrationNumber: tenantData.vehicleRegistrationNumber || '',
+            vehicleColor: tenantData.vehicleColor || '',
             hostelId: tenantData.activeAllocation?.hostel?.id?.toString() || '',
             floorId: tenantData.activeAllocation?.floor?.id?.toString() || '',
             roomId: tenantData.activeAllocation?.room?.id?.toString() || '',
@@ -1021,6 +1040,7 @@ const PeopleHub: React.FC = () => {
         formData.append('attachments', file);
       });
     }
+    formData.append('address', JSON.stringify(formDataFromComponent.address || { street: '', city: '', country: '' }));
     
     // Professional fields
     if (formDataFromComponent.professionType) {
@@ -1145,6 +1165,13 @@ const PeopleHub: React.FC = () => {
     if (formDataFromComponent.nearestRelativeRelation === 'other' && formDataFromComponent.nearestRelativeRelationOther) {
       formData.append('nearestRelativeRelationOther', formDataFromComponent.nearestRelativeRelationOther);
     }
+
+    // Vehicle/Bike Detail fields - append empty values too so edit can clear them
+    formData.append('vehicleParkingStatus', formDataFromComponent.vehicleParkingStatus || '');
+    formData.append('vehicleType', formDataFromComponent.vehicleType || '');
+    formData.append('vehicleNumberPlate', formDataFromComponent.vehicleNumberPlate || '');
+    formData.append('vehicleRegistrationNumber', formDataFromComponent.vehicleRegistrationNumber || '');
+    formData.append('vehicleColor', formDataFromComponent.vehicleColor || '');
     
     // Hostel Info fields
     if (formDataFromComponent.hostelId) {

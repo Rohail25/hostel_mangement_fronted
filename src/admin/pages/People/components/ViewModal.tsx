@@ -13,6 +13,7 @@ interface ModalData {
   id: number;
   name?: string;
   firstName?: string;
+  fatherName?: string;
   lastName?: string;
   email?: string;
   phone?: string;
@@ -183,9 +184,10 @@ const ViewModal: React.FC<ViewModalProps> = ({
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Info label="First Name" value={data.firstName || data.name?.split(' ')[0] || ''} />
-              <Info label="Last Name" value={data.lastName || data.name?.split(' ')[1] || ''} />
+              {/* <Info label="First Name" value={data.firstName || data.name?.split(' ')[0] || ''} />
+              <Info label="Last Name" value={data.lastName || data.name?.split(' ')[1] || ''} /> */}
               <Info label="Full Name" value={data.name || ''} />
+              <Info label="Father Name" value={data.fatherName || ''} />
               <Info label="Status" value={data.status || ''} />
               <Info label="Email" value={data.email || ''} />
               <Info label="Phone" value={data.phone || ''} />
@@ -193,6 +195,11 @@ const ViewModal: React.FC<ViewModalProps> = ({
               <Info label="Gender" value={data.gender || ''} />
               <Info label="Date of Birth" value={data.dateOfBirth ? new Date(data.dateOfBirth).toLocaleDateString() : 'N/A'} />
               <Info label="CNIC Number" value={data.cnicNumber || 'N/A'} />
+              <Info label="Vehicle Parking Status" value={data.vehicleParkingStatus ? data.vehicleParkingStatus.replace('_', ' ') : 'N/A'} />
+              <Info label="Vehicle Type" value={data.vehicleType || 'N/A'} />
+              <Info label="Number Plate" value={data.vehicleNumberPlate || 'N/A'} />
+              <Info label="Registration Number" value={data.vehicleRegistrationNumber || 'N/A'} />
+              <Info label="Vehicle Color" value={data.vehicleColor || 'N/A'} />
               <Info label="Hostel" value={data.hostel || 'N/A'} />
               <Info label="Floor" value={data.floor || 'N/A'} />
               <Info label="Room" value={data.room || 'N/A'} />
